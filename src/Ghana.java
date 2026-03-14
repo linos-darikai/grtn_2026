@@ -4,10 +4,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 
 /**
  * 
- *
  * @author Stanley and Linos 2026
  * @version 1.1
  * @see City
@@ -16,9 +17,11 @@ public class Ghana {
 
     /**
      * Master map of all cities in the network.
-     * <p>Key: <strong>lowercase</strong> city name (e.g. {@code "cape coast"}).<br>
+     * <p>
+     * Key: <strong>lowercase</strong> city name (e.g. {@code "cape coast"}).<br>
      * Value: the corresponding {@link City} instance, which stores the
-     * original display name.</p>
+     * original display name.
+     * </p>
      */
     private HashMap<String, City> cities;
 
@@ -39,8 +42,10 @@ public class Ghana {
      * Normalizes a city name into a consistent lowercase key for map storage
      * and lookup.
      *
-     * <p>This ensures that {@code "Accra"}, {@code "accra"}, and
-     * {@code " ACCRA "} all map to the same key {@code "accra"}.</p>
+     * <p>
+     * This ensures that {@code "Accra"}, {@code "accra"}, and
+     * {@code " ACCRA "} all map to the same key {@code "accra"}.
+     * </p>
      *
      * @param name the raw city name
      * @return the trimmed, lowercased key
@@ -50,23 +55,27 @@ public class Ghana {
     }
 
     // -----------------------------------------------------------------------
-    //  Loading
+    // Loading
     // -----------------------------------------------------------------------
 
     /**
      * Loads city and edge data from the specified file into the network.
      *
-     * <p>The method inspects the file extension to choose the correct parser:</p>
+     * <p>
+     * The method inspects the file extension to choose the correct parser:
+     * </p>
      * <ul>
-     *   <li>{@code .csv} — expects a header row followed by comma-separated
-     *       data rows ({@code source,destination,distance_km,avg_time_min})</li>
-     *   <li>{@code .txt} — expects comma-and-space-separated data rows with
-     *       no header ({@code source, destination, distance_km, avg_time_min})</li>
+     * <li>{@code .csv} — expects a header row followed by comma-separated
+     * data rows ({@code source,destination,distance_km,avg_time_min})</li>
+     * <li>{@code .txt} — expects comma-and-space-separated data rows with
+     * no header ({@code source, destination, distance_km, avg_time_min})</li>
      * </ul>
      *
-     * <p>All I/O resources are managed with try-with-resources to prevent
+     * <p>
+     * All I/O resources are managed with try-with-resources to prevent
      * leaks. Malformed or incomplete lines are skipped with a warning printed
-     * to {@code System.err}.</p>
+     * to {@code System.err}.
+     * </p>
      *
      * @param filePath the path to the {@code .csv} or {@code .txt} data file
      * @throws IOException              if the file cannot be read
@@ -80,28 +89,31 @@ public class Ghana {
         } else {
             throw new IllegalArgumentException(
                     "Unsupported file type: " + filePath +
-                    ". Expected .csv or .txt");
+                            ". Expected .csv or .txt");
         }
     }
 
     /**
      * Parses a CSV file with a header row.
      *
-     * <p>Expected format per data row:
-     * {@code source,destination,distance_km,avg_time_min}</p>
+     * <p>
+     * Expected format per data row:
+     * {@code source,destination,distance_km,avg_time_min}
+     * </p>
      *
      * @param filePath path to the CSV file
      * @throws IOException if the file cannot be read
      */
     private void loadFromCsv(String filePath) throws IOException {
         try (FileReader fileReader = new FileReader(filePath);
-             BufferedReader reader = new BufferedReader(fileReader)) {
+                BufferedReader reader = new BufferedReader(fileReader)) {
             reader.readLine(); // skip header
             String line;
             int lineNumber = 1; // header was line 1
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                if (line.isBlank()) continue;
+                if (line.isBlank())
+                    continue;
                 String[] parts = line.split(",");
                 processEdge(parts, filePath, lineNumber);
             }
@@ -111,21 +123,24 @@ public class Ghana {
     /**
      * Parses a TXT file with no header row.
      *
-     * <p>Expected format per row:
+     * <p>
+     * Expected format per row:
      * {@code source, destination, distance_km, avg_time_min}
-     * (comma optionally followed by whitespace).</p>
+     * (comma optionally followed by whitespace).
+     * </p>
      *
      * @param filePath path to the TXT file
      * @throws IOException if the file cannot be read
      */
     private void loadFromTxt(String filePath) throws IOException {
         try (FileReader fileReader = new FileReader(filePath);
-             BufferedReader reader = new BufferedReader(fileReader)) {
+                BufferedReader reader = new BufferedReader(fileReader)) {
             String line;
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                if (line.isBlank()) continue;
+                if (line.isBlank())
+                    continue;
                 String[] parts = line.split(",\\s*");
                 processEdge(parts, filePath, lineNumber);
             }
@@ -136,30 +151,40 @@ public class Ghana {
      * Validates and processes a single parsed directed edge, registering it in
      * the graph.
      *
-     * <p>Each valid line produces exactly one directed edge
+     * <p>
+     * Each valid line produces exactly one directed edge
      * from source to destination. No reverse edge is created,the graph
      * treats {@code A → B} and {@code B → A} as independent edges that must
-     * each appear as their own row in the dataset.</p>
+     * each appear as their own row in the dataset.
+     * </p>
      *
-     * <p>Validation checks performed before insertion:</p>
+     * <p>
+     * Validation checks performed before insertion:
+     * </p>
      * <ol>
-     *   <li>The line must have at least 4 columns.</li>
-     *   <li>Both source and destination names must be non-blank after trimming.</li>
-     *   <li>Distance and time columns must be valid non-negative integers.</li>
+     * <li>The line must have at least 4 columns.</li>
+     * <li>Both source and destination names must be non-blank after trimming.</li>
+     * <li>Distance and time columns must be valid non-negative integers.</li>
      * </ol>
      *
-     * <p>If any check fails, a descriptive warning is printed to
+     * <p>
+     * If any check fails, a descriptive warning is printed to
      * {@code System.err} and the line is skipped — no exception is thrown so
-     * that loading continues for remaining lines.</p>
+     * that loading continues for remaining lines.
+     * </p>
      *
-     * <p>If a directed edge from source to destination already exists (e.g.
+     * <p>
+     * If a directed edge from source to destination already exists (e.g.
      * from a previous file load), the edge data is overwritten with the new
      * values and a warning is printed. The {@link #edgeCount} is only
-     * incremented for genuinely new edges to keep the count accurate.</p>
+     * incremented for genuinely new edges to keep the count accurate.
+     * </p>
      *
-     * <p>City names are stored and looked up using {@link #normalizeKey(String)}
+     * <p>
+     * City names are stored and looked up using {@link #normalizeKey(String)}
      * to guarantee case-insensitive matching. The first-encountered casing of
-     * a city name becomes its display name in the {@link City} object.</p>
+     * a city name becomes its display name in the {@link City} object.
+     * </p>
      *
      * @param parts      the split columns from one data line
      * @param filePath   the file being loaded (for warning context)
@@ -217,10 +242,6 @@ public class Ghana {
         sourceCity.addNeighbor(destKey, distance, time);
     }
 
-    // -----------------------------------------------------------------------
-    //  Getters
-    // -----------------------------------------------------------------------
-
     /**
      * Returns the full map of all cities in the network.
      *
@@ -276,7 +297,6 @@ public class Ghana {
         return city.getNeighbors();
     }
 
-
     /**
      * Prints the total number of cities (vertices) in the network to
      */
@@ -291,14 +311,12 @@ public class Ghana {
         System.out.println("Total directed roads (edges): " + edgeCount);
     }
 
-
-
-
     /**
      * Computes the shortest distance between two cities in the network.
      *
-     * <p><strong>Not yet implemented.</strong> Will use a shortest-path
-     * algorithm (e.g. Dijkstra) over the distance weights.</p>
+     * <p>
+     * Uses a shortest-path algorithm (Dijkstra) over the distance weights.
+     * </p>
      *
      * @param fromCity the name of the origin city (case-insensitive)
      * @param toCity   the name of the destination city (case-insensitive)
@@ -306,16 +324,77 @@ public class Ghana {
      *         exists
      */
     public int getDistance(String fromCity, String toCity) {
-        // TODO: implement shortest-path distance calculation
-        return -1;
+        String startKey = normalizeKey(fromCity);
+        String endKey = normalizeKey(toCity);
+
+        if (!cities.containsKey(startKey) || !cities.containsKey(endKey)) {
+            return -1;
+        }
+
+        class Node implements Comparable<Node> {
+            String name;
+            int dist;
+
+            Node(String name, int dist) {
+                this.name = name;
+                this.dist = dist;
+            }
+
+            @Override
+            public int compareTo(Node other) {
+                return Integer.compare(this.dist, other.dist);
+            }
+        }
+
+        HashMap<String, Integer> distances = new HashMap<>();
+        for (String cityKey : cities.keySet()) {
+            distances.put(cityKey, Integer.MAX_VALUE);
+        }
+        distances.put(startKey, 0);
+
+        PriorityQueue<Node> pq = new PriorityQueue<>();
+        pq.add(new Node(startKey, 0));
+
+        while (!pq.isEmpty()) {
+            Node current = pq.poll();
+            String currentKey = current.name;
+            int currentDist = current.dist;
+
+            if (currentKey.equals(endKey)) {
+                return currentDist;
+            }
+
+            if (currentDist > distances.get(currentKey)) {
+                continue;
+            }
+
+            City currentCity = cities.get(currentKey);
+            if (currentCity != null && currentCity.getNeighbors() != null) {
+                for (Map.Entry<String, int[]> entry : currentCity.getNeighbors().entrySet()) {
+                    String neighborKey = entry.getKey();
+                    int edgeDistance = entry.getValue()[0];
+                    int newDist = currentDist + edgeDistance;
+
+                    if (distances.containsKey(neighborKey) && newDist < distances.get(neighborKey)) {
+                        distances.put(neighborKey, newDist);
+                        pq.add(new Node(neighborKey, newDist));
+                    }
+                }
+            }
+        }
+
+        int finalDist = distances.get(endKey);
+        return finalDist == Integer.MAX_VALUE ? -1 : finalDist;
     }
 
     /**
      * Finds all cities along the single shortest path between two cities,
      * in order from origin to destination.
      *
-     * <p><strong>Not yet implemented.</strong> Will reconstruct the path
-     * produced by the shortest-path algorithm.</p>
+     * <p>
+     * <strong>Not yet implemented.</strong> Will reconstruct the path
+     * produced by the shortest-path algorithm.
+     * </p>
      *
      * @param fromCity the name of the origin city (case-insensitive)
      * @param toCity   the name of the destination city (case-insensitive)
@@ -331,9 +410,11 @@ public class Ghana {
      * Finds the top 3 shortest paths between two cities, ranked by total
      * distance.
      *
-     * <p><strong>Not yet implemented.</strong> Will use a k-shortest-paths
+     * <p>
+     * <strong>Not yet implemented.</strong> Will use a k-shortest-paths
      * algorithm (e.g. Yen's algorithm) to return up to three distinct
-     * routes.</p>
+     * routes.
+     * </p>
      *
      * @param fromCity the name of the origin city (case-insensitive)
      * @param toCity   the name of the destination city (case-insensitive)
