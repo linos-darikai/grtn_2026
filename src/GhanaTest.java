@@ -1,7 +1,10 @@
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Unit tests for the {@link Town} and {@link Ghana} classes.
@@ -77,6 +80,45 @@ public class GhanaTest {
         testFastestTimeDirectedOnly();
         testFastestTimeCaseInsensitive();
         testFastestTimeChoosesFastestRoute();
+
+        System.out.println("\n=== getFuelCost Tests ===");
+        testFuelCostDirectNeighbor();
+        testFuelCostMultiHopRoute();
+        testFuelCostIntegerDivisionTruncates();
+        testFuelCostDistanceLessThanOneLitre();
+        testFuelCostEmptyRoute();
+        testFuelCostSingleTownRoute();
+        testFuelCostNullRoute();
+        testFuelCostNoPathInRoute();
+        testFuelCostNonExistentTown();
+        testFuelCostCaseInsensitive();
+        testFuelCostNoDirectEdgeUsesShortestPath();
+        testFuelCostUsesShortestNotDirect();
+        testFuelCostZeroDistanceEdge();
+
+        System.out.println("\n=== getTotalCost Tests ===");
+        testTotalCostSingleHop();
+        testTotalCostMultiHop();
+        testTotalCostBreakdown();
+        testTotalCostEmptyRoute();
+        testTotalCostSingleTown();
+        testTotalCostNullRoute();
+        testTotalCostNoEdge();
+        testTotalCostNonExistentTown();
+        testTotalCostCaseInsensitive();
+        testTotalCostNoDirectEdgeUsesShortestPath();
+        testTotalCostUsesShortestNotDirect();
+        testTotalCostZeroDistanceAndTime();
+
+        System.out.println("\n=== recommendRoute Tests ===");
+        testRecommendShortestWins();
+        testRecommendFastestWins();
+        testRecommendSameRoute();
+        testRecommendSameTown();
+        testRecommendNoPath();
+        testRecommendNonExistentTown();
+        testRecommendCaseInsensitive();
+        testRecommendSummaryContent();
 
         System.out.println("\n=== Top 3 Shortest Paths Tests ===");
         testTop3ShortestPathsStandard();
@@ -457,50 +499,54 @@ public class GhanaTest {
 
     private static void testDistanceDirectNeighbor() throws IOException {
         Ghana g = buildTestGraph();
-        int dist = g.getDistance("A", "B");
-        assertEqual(100, dist, "direct neighbor: A->B = 100");
+        Ghana.PathResult result = g.getDistance("A", "B");
+        assertNotNull(result, "direct neighbor: A->B path exists");
+        assertEqual(100, result.getDistance(), "direct neighbor: A->B = 100");
+        assertEqual("[A, B]", result.getPath().toString(), "direct neighbor path: [A, B]");
     }
 
     private static void testDistanceMultiHop() throws IOException {
         Ghana g = buildTestGraph();
-        // A->B->C = 100+50 = 150, which is shorter than A->C = 200
-        int dist = g.getDistance("A", "C");
-        assertEqual(150, dist, "multi-hop: A->B->C (150) beats A->C (200)");
+        Ghana.PathResult result = g.getDistance("A", "C");
+        assertNotNull(result, "multi-hop: A->C path exists");
+        assertEqual(150, result.getDistance(), "multi-hop: A->B->C (150) beats A->C (200)");
+        assertEqual("[A, B, C]", result.getPath().toString(), "multi-hop path: [A, B, C]");
     }
 
     private static void testDistanceNoPath() throws IOException {
         Ghana g = buildTestGraph();
-        // D has no outgoing edges, and no edges lead from D/C back to A
-        int dist = g.getDistance("D", "A");
-        assertEqual(-1, dist, "no path: D->A returns -1");
+        Ghana.PathResult result = g.getDistance("D", "A");
+        assertNull(result, "no path: D->A returns null");
     }
 
     private static void testDistanceNonExistentSource() throws IOException {
         Ghana g = buildTestGraph();
-        int dist = g.getDistance("Z", "A");
-        assertEqual(-1, dist, "non-existent source: returns -1");
+        Ghana.PathResult result = g.getDistance("Z", "A");
+        assertNull(result, "non-existent source: returns null");
     }
 
     private static void testDistanceNonExistentDestination() throws IOException {
         Ghana g = buildTestGraph();
-        int dist = g.getDistance("A", "Z");
-        assertEqual(-1, dist, "non-existent destination: returns -1");
+        Ghana.PathResult result = g.getDistance("A", "Z");
+        assertNull(result, "non-existent destination: returns null");
     }
 
     private static void testDistanceSameTown() throws IOException {
         Ghana g = buildTestGraph();
-        int dist = g.getDistance("A", "A");
-        assertEqual(0, dist, "same town: A->A = 0");
+        Ghana.PathResult result = g.getDistance("A", "A");
+        assertNotNull(result, "same town: A->A path exists");
+        assertEqual(0, result.getDistance(), "same town: A->A = 0");
+        assertEqual("[A]", result.getPath().toString(), "same town path: [A]");
     }
 
     private static void testDistanceDirectedOnly() throws IOException {
         Ghana g = buildTestGraph();
-        // A->B exists (100), but B->A does not
-        int distForward = g.getDistance("A", "B");
-        int distReverse = g.getDistance("B", "A");
+        Ghana.PathResult forward = g.getDistance("A", "B");
+        Ghana.PathResult reverse = g.getDistance("B", "A");
 
-        assertEqual(100, distForward, "directed: A->B = 100");
-        assertEqual(-1, distReverse, "directed: B->A = -1 (no reverse edge)");
+        assertNotNull(forward, "directed: A->B path exists");
+        assertEqual(100, forward.getDistance(), "directed: A->B = 100");
+        assertNull(reverse, "directed: B->A = null (no reverse edge)");
     }
 
     private static void testDistanceCaseInsensitiveLookup() throws IOException {
@@ -511,14 +557,13 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        int dist = g.getDistance("accra", "TEMA");
-        assertEqual(316, dist, "case-insensitive distance: accra->TEMA = 316");
+        Ghana.PathResult result = g.getDistance("accra", "TEMA");
+        assertNotNull(result, "case-insensitive: path exists");
+        assertEqual(316, result.getDistance(), "case-insensitive distance: accra->TEMA = 316");
+        assertEqual("[Accra, Tema]", result.getPath().toString(), "case-insensitive path: [Accra, Tema]");
     }
 
     private static void testDistanceChoosesShortestRoute() throws IOException {
-        // A->B->C->D = 10+10+10 = 30
-        // A->D = 50 (direct but longer)
-        // A->C->D = 25+10 = 35 (also longer)
         File f = createTempCsv(
                 "source,destination,distance_km,avg_time_min\n" +
                 "A,B,10,10\n" +
@@ -530,8 +575,10 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        int dist = g.getDistance("A", "D");
-        assertEqual(30, dist, "shortest among 3 routes: A->B->C->D = 30");
+        Ghana.PathResult result = g.getDistance("A", "D");
+        assertNotNull(result, "shortest route: path exists");
+        assertEqual(30, result.getDistance(), "shortest among 3 routes: A->B->C->D = 30");
+        assertEqual("[A, B, C, D]", result.getPath().toString(), "shortest route path: [A, B, C, D]");
     }
 
     // -----------------------------------------------------------------------
@@ -540,16 +587,18 @@ public class GhanaTest {
 
     private static void testFastestTimeDirectNeighbor() throws IOException {
         Ghana g = buildTestGraph();
-        // A->B: time = 60
-        int time = g.getFastestTime("A", "B");
-        assertEqual(60, time, "fastest direct neighbor: A->B = 60 min");
+        Ghana.PathResult result = g.getFastestTime("A", "B");
+        assertNotNull(result, "fastest direct neighbor: path exists");
+        assertEqual(60, result.getTime(), "fastest direct neighbor: A->B = 60 min");
+        assertEqual("[A, B]", result.getPath().toString(), "fastest direct neighbor path: [A, B]");
     }
 
     private static void testFastestTimeMultiHop() throws IOException {
         Ghana g = buildTestGraph();
-        // A->B->C = 60+30 = 90 min, vs A->C = 120 min
-        int time = g.getFastestTime("A", "C");
-        assertEqual(90, time, "fastest multi-hop: A->B->C (90) beats A->C (120)");
+        Ghana.PathResult result = g.getFastestTime("A", "C");
+        assertNotNull(result, "fastest multi-hop: path exists");
+        assertEqual(90, result.getTime(), "fastest multi-hop: A->B->C (90) beats A->C (120)");
+        assertEqual("[A, B, C]", result.getPath().toString(), "fastest multi-hop path: [A, B, C]");
     }
 
     /**
@@ -562,8 +611,8 @@ public class GhanaTest {
      *   B --fast road-->  C : 100 km, 10 min   (long but fast)
      * </pre>
      *
-     * Shortest distance: A->C = 50 km
-     * Fastest time:      A->B->C = 10+10 = 20 min (vs A->C = 200 min)
+     * Shortest distance: A->C = 50 km  (path [A, C])
+     * Fastest time:      A->B->C = 20 min (path [A, B, C])
      */
     private static void testFastestTimeDiffersFromDistance() throws IOException {
         File f = createTempCsv(
@@ -575,44 +624,52 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        int dist = g.getDistance("A", "C");
-        int time = g.getFastestTime("A", "C");
+        Ghana.PathResult distResult = g.getDistance("A", "C");
+        Ghana.PathResult timeResult = g.getFastestTime("A", "C");
 
-        assertEqual(50, dist, "distance-optimal: A->C = 50 km (direct)");
-        assertEqual(20, time, "time-optimal: A->B->C = 20 min (different route)");
+        assertNotNull(distResult, "distance-optimal: A->C path exists");
+        assertEqual(50, distResult.getDistance(), "distance-optimal: A->C = 50 km (direct)");
+        assertEqual("[A, C]", distResult.getPath().toString(), "distance-optimal path: [A, C]");
+
+        assertNotNull(timeResult, "time-optimal: A->C path exists");
+        assertEqual(20, timeResult.getTime(), "time-optimal: A->B->C = 20 min (different route)");
+        assertEqual("[A, B, C]", timeResult.getPath().toString(), "time-optimal path: [A, B, C]");
     }
 
     private static void testFastestTimeNoPath() throws IOException {
         Ghana g = buildTestGraph();
-        int time = g.getFastestTime("D", "A");
-        assertEqual(-1, time, "fastest no path: D->A returns -1");
+        Ghana.PathResult result = g.getFastestTime("D", "A");
+        assertNull(result, "fastest no path: D->A returns null");
     }
 
     private static void testFastestTimeNonExistentSource() throws IOException {
         Ghana g = buildTestGraph();
-        int time = g.getFastestTime("Z", "A");
-        assertEqual(-1, time, "fastest non-existent source: returns -1");
+        Ghana.PathResult result = g.getFastestTime("Z", "A");
+        assertNull(result, "fastest non-existent source: returns null");
     }
 
     private static void testFastestTimeNonExistentDestination() throws IOException {
         Ghana g = buildTestGraph();
-        int time = g.getFastestTime("A", "Z");
-        assertEqual(-1, time, "fastest non-existent destination: returns -1");
+        Ghana.PathResult result = g.getFastestTime("A", "Z");
+        assertNull(result, "fastest non-existent destination: returns null");
     }
 
     private static void testFastestTimeSameTown() throws IOException {
         Ghana g = buildTestGraph();
-        int time = g.getFastestTime("A", "A");
-        assertEqual(0, time, "fastest same town: A->A = 0 min");
+        Ghana.PathResult result = g.getFastestTime("A", "A");
+        assertNotNull(result, "fastest same town: path exists");
+        assertEqual(0, result.getTime(), "fastest same town: A->A = 0 min");
+        assertEqual("[A]", result.getPath().toString(), "fastest same town path: [A]");
     }
 
     private static void testFastestTimeDirectedOnly() throws IOException {
         Ghana g = buildTestGraph();
-        int forward = g.getFastestTime("A", "B");
-        int reverse = g.getFastestTime("B", "A");
+        Ghana.PathResult forward = g.getFastestTime("A", "B");
+        Ghana.PathResult reverse = g.getFastestTime("B", "A");
 
-        assertEqual(60, forward, "fastest directed: A->B = 60 min");
-        assertEqual(-1, reverse, "fastest directed: B->A = -1 (no reverse edge)");
+        assertNotNull(forward, "fastest directed: A->B path exists");
+        assertEqual(60, forward.getTime(), "fastest directed: A->B = 60 min");
+        assertNull(reverse, "fastest directed: B->A = null (no reverse edge)");
     }
 
     private static void testFastestTimeCaseInsensitive() throws IOException {
@@ -623,8 +680,10 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        int time = g.getFastestTime("accra", "TEMA");
-        assertEqual(307, time, "fastest case-insensitive: accra->TEMA = 307 min");
+        Ghana.PathResult result = g.getFastestTime("accra", "TEMA");
+        assertNotNull(result, "fastest case-insensitive: path exists");
+        assertEqual(307, result.getTime(), "fastest case-insensitive: accra->TEMA = 307 min");
+        assertEqual("[Accra, Tema]", result.getPath().toString(), "fastest case-insensitive path: [Accra, Tema]");
     }
 
     /**
@@ -647,8 +706,439 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        int time = g.getFastestTime("A", "D");
-        assertEqual(15, time, "fastest among 3 routes: A->B->C->D = 15 min");
+        Ghana.PathResult result = g.getFastestTime("A", "D");
+        assertNotNull(result, "fastest chooses best: path exists");
+        assertEqual(15, result.getTime(), "fastest among 3 routes: A->B->C->D = 15 min");
+        assertEqual("[A, B, C, D]", result.getPath().toString(), "fastest chooses best path: [A, B, C, D]");
+    }
+
+    // -----------------------------------------------------------------------
+    //  getFuelCost Tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * Helper to compare doubles within a small tolerance.
+     */
+    private static void assertDoubleEqual(double expected, double actual, String testName) {
+        if (Math.abs(expected - actual) < 0.001) {
+            pass(testName);
+        } else {
+            fail(testName, "expected <" + expected + "> but got <" + actual + ">");
+        }
+    }
+
+    /**
+     * Route [A, B]: edge A->B = 100 km.
+     * Litres = 100 / 8 = 12.  Cost = 12 * 11.955 = 143.46
+     */
+    private static void testFuelCostDirectNeighbor() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "B"));
+        assertDoubleEqual(143.46, cost, "fuel cost route [A,B]: (100/8)*11.955 = 143.46");
+    }
+
+    /**
+     * Multi-hop route [A, B, C]:
+     * edge A->B = 100, edge B->C = 50, total = 150 km.
+     * Litres = 150 / 8 = 18.  Cost = 18 * 11.955 = 215.19
+     */
+    private static void testFuelCostMultiHopRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "B", "C"));
+        assertDoubleEqual(215.19, cost, "fuel cost route [A,B,C]: (150/8)*11.955 = 215.19");
+    }
+
+    /**
+     * Integer division must truncate, not round.
+     * Route [A, B, D]: edge A->B=100, edge B->D=30 → 130 km.
+     * Litres = 130 / 8 = 16 (not 16.25).  Cost = 16 * 11.955 = 191.28
+     */
+    private static void testFuelCostIntegerDivisionTruncates() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "B", "D"));
+        assertDoubleEqual(191.28, cost, "fuel cost truncates: (130/8)*11.955 = 191.28");
+    }
+
+    /**
+     * Distance < 8 km → 0 litres → cost 0.0.
+     * Route [X, Y] = 5 km.
+     */
+    private static void testFuelCostDistanceLessThanOneLitre() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "X,Y,5,10\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        double cost = g.getFuelCost(Arrays.asList("X", "Y"));
+        assertDoubleEqual(0.0, cost, "fuel cost < 8 km: (5/8)*11.955 = 0.0");
+    }
+
+    private static void testFuelCostEmptyRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(new ArrayList<>());
+        assertDoubleEqual(0.0, cost, "fuel cost empty route: 0.0");
+    }
+
+    private static void testFuelCostSingleTownRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A"));
+        assertDoubleEqual(0.0, cost, "fuel cost single-town route: 0.0");
+    }
+
+    private static void testFuelCostNullRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost((List<String>) null);
+        assertDoubleEqual(0.0, cost, "fuel cost null route: 0.0");
+    }
+
+    /**
+     * Route with a broken segment: [A, B, D, A].
+     * A->B = 100, B->D = 30, D->A has no path → returns -1.0.
+     */
+    private static void testFuelCostNoPathInRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "B", "D", "A"));
+        assertDoubleEqual(-1.0, cost, "fuel cost broken route [A,B,D,A]: D->A missing = -1.0");
+    }
+
+    private static void testFuelCostNonExistentTown() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "Z"));
+        assertDoubleEqual(-1.0, cost, "fuel cost non-existent town in route: -1.0");
+    }
+
+    /**
+     * Case insensitive: route ["a", "b"] resolves to A->B = 100 km.
+     */
+    private static void testFuelCostCaseInsensitive() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("a", "b"));
+        assertDoubleEqual(143.46, cost, "fuel cost case-insensitive: (100/8)*11.955 = 143.46");
+    }
+
+    /**
+     * Route [A, D]: no direct edge, but Dijkstra finds A->B->D = 130 km, 80 min.
+     * Litres = 130 / 8 = 16.  Cost = 16 * 11.955 = 191.28
+     */
+    private static void testFuelCostNoDirectEdgeUsesShortestPath() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "D"));
+        assertDoubleEqual(191.28, cost, "fuel cost no direct edge [A,D]: A->B->D = 130 km, (130/8)*11.955 = 191.28");
+    }
+
+    /**
+     * Route [A, C]: direct edge = 200 km, but shortest path A->B->C = 150 km.
+     * Litres = 150 / 8 = 18.  Cost = 18 * 11.955 = 215.19
+     */
+    private static void testFuelCostUsesShortestNotDirect() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getFuelCost(Arrays.asList("A", "C"));
+        assertDoubleEqual(215.19, cost, "fuel cost [A,C]: shortest 150 km (not direct 200), (150/8)*11.955 = 215.19");
+    }
+
+    /**
+     * Zero-distance edge: route [X, Y] = 0 km. Cost = 0.0.
+     */
+    private static void testFuelCostZeroDistanceEdge() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "X,Y,0,10\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        double cost = g.getFuelCost(Arrays.asList("X", "Y"));
+        assertDoubleEqual(0.0, cost, "fuel cost zero distance: 0.0");
+    }
+
+    // -----------------------------------------------------------------------
+    //  getTotalCost Tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * Single hop [A, B]: edge = 100 km, 60 min.
+     * distance_cost = (100/8) * 11.955 = 12 * 11.955 = 143.46
+     * time_cost     = 60 * 0.5 = 30.0
+     * total         = 173.46
+     */
+    private static void testTotalCostSingleHop() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "B"));
+        assertDoubleEqual(173.46, cost, "total cost [A,B]: 143.46 + 30.0 = 173.46");
+    }
+
+    /**
+     * Multi-hop [A, B, C]: edges = (100km,60min) + (50km,30min) = 150km, 90min.
+     * distance_cost = (150/8) * 11.955 = 18 * 11.955 = 215.19
+     * time_cost     = 90 * 0.5 = 45.0
+     * total         = 260.19
+     */
+    private static void testTotalCostMultiHop() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "B", "C"));
+        assertDoubleEqual(260.19, cost, "total cost [A,B,C]: 215.19 + 45.0 = 260.19");
+    }
+
+    /**
+     * Verifies each component independently: different distance and time
+     * values to ensure both are accumulated correctly.
+     * <pre>
+     *   X->Y: 24 km, 100 min
+     *   Y->Z: 16 km, 50  min
+     *   total: 40 km, 150 min
+     * </pre>
+     * distance_cost = (40/8) * 11.955 = 5 * 11.955 = 59.775
+     * time_cost     = 150 * 0.5 = 75.0
+     * total         = 134.775
+     */
+    private static void testTotalCostBreakdown() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "X,Y,24,100\n" +
+                "Y,Z,16,50\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        double cost = g.getTotalCost(Arrays.asList("X", "Y", "Z"));
+        assertDoubleEqual(134.775, cost, "total cost breakdown: 59.775 + 75.0 = 134.775");
+    }
+
+    private static void testTotalCostEmptyRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(new ArrayList<>());
+        assertDoubleEqual(0.0, cost, "total cost empty route: 0.0");
+    }
+
+    private static void testTotalCostSingleTown() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A"));
+        assertDoubleEqual(0.0, cost, "total cost single-town route: 0.0");
+    }
+
+    private static void testTotalCostNullRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(null);
+        assertDoubleEqual(0.0, cost, "total cost null route: 0.0");
+    }
+
+    /**
+     * Route with a missing directed edge: D->A does not exist.
+     */
+    private static void testTotalCostNoEdge() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "B", "D", "A"));
+        assertDoubleEqual(-1.0, cost, "total cost missing edge D->A: -1.0");
+    }
+
+    private static void testTotalCostNonExistentTown() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "Z"));
+        assertDoubleEqual(-1.0, cost, "total cost non-existent town: -1.0");
+    }
+
+    /**
+     * Case insensitive: ["a", "b"] resolves to A->B edge (100km, 60min).
+     * total = 143.46 + 30.0 = 173.46
+     */
+    private static void testTotalCostCaseInsensitive() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("a", "b"));
+        assertDoubleEqual(173.46, cost, "total cost case-insensitive: 173.46");
+    }
+
+    /**
+     * Route [A, D]: no direct edge, but Dijkstra finds A->B->D = 130 km, 80 min.
+     * distance_cost = (130/8) * 11.955 = 16 * 11.955 = 191.28
+     * time_cost     = 80 * 0.5 = 40.0
+     * total         = 231.28
+     */
+    private static void testTotalCostNoDirectEdgeUsesShortestPath() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "D"));
+        assertDoubleEqual(231.28, cost, "total cost no direct edge [A,D]: 191.28 + 40.0 = 231.28");
+    }
+
+    /**
+     * Route [A, C]: direct edge = 200 km / 120 min, but shortest-distance
+     * path is A->B->C = 150 km / 90 min.
+     * distance_cost = (150/8) * 11.955 = 18 * 11.955 = 215.19
+     * time_cost     = 90 * 0.5 = 45.0
+     * total         = 260.19
+     */
+    private static void testTotalCostUsesShortestNotDirect() throws IOException {
+        Ghana g = buildTestGraph();
+        double cost = g.getTotalCost(Arrays.asList("A", "C"));
+        assertDoubleEqual(260.19, cost, "total cost [A,C]: shortest 150km/90min, 215.19 + 45.0 = 260.19");
+    }
+
+    /**
+     * Zero distance and zero time: cost = 0.0 + 0.0 = 0.0
+     */
+    private static void testTotalCostZeroDistanceAndTime() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "X,Y,0,0\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        double cost = g.getTotalCost(Arrays.asList("X", "Y"));
+        assertDoubleEqual(0.0, cost, "total cost zero distance and time: 0.0");
+    }
+
+    // -----------------------------------------------------------------------
+    //  recommendRoute Tests
+    // -----------------------------------------------------------------------
+
+    /**
+     * Shortest-distance route wins.
+     * <pre>
+     *   A->C : 50 km, 200 min  (short but slow)
+     *   A->B : 100 km, 10 min  (long but fast)
+     *   B->C : 100 km, 10 min  (long but fast)
+     * </pre>
+     * Shortest path: [A, C] — 50 km, 200 min
+     *   fuel = (50/8)*11.955 = 6*11.955 = 71.73
+     *   time = 200*0.5 = 100.0
+     *   total = 171.73
+     * Fastest path:  [A, B, C] — 200 km, 20 min
+     *   fuel = (200/8)*11.955 = 25*11.955 = 298.875
+     *   time = 20*0.5 = 10.0
+     *   total = 308.875
+     * Recommendation: shortest (171.73 < 308.875)
+     */
+    private static void testRecommendShortestWins() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,C,50,200\n" +
+                "A,B,100,10\n" +
+                "B,C,100,10\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        assertNotNull(rc, "recommend shortest wins: result exists");
+        assertEqual("shortest", rc.getRecommendation(), "recommend shortest wins: recommendation");
+        assertEqual("[A, C]", rc.getShortestPath().toString(), "recommend shortest wins: shortest path");
+        assertEqual("[A, B, C]", rc.getFastestPath().toString(), "recommend shortest wins: fastest path");
+        assertEqual(50, rc.getShortestDistance(), "recommend shortest wins: shortest distance");
+        assertEqual(200, rc.getShortestTime(), "recommend shortest wins: shortest time");
+        assertEqual(200, rc.getFastestDistance(), "recommend shortest wins: fastest distance");
+        assertEqual(20, rc.getFastestTime(), "recommend shortest wins: fastest time");
+        assertDoubleEqual(171.73, rc.getShortestTotalCost(), "recommend shortest wins: shortest total cost");
+        assertDoubleEqual(308.875, rc.getFastestTotalCost(), "recommend shortest wins: fastest total cost");
+    }
+
+    /**
+     * Fastest-time route wins.
+     * <pre>
+     *   A->C : 100 km, 10 min  (short-ish, very fast)
+     *   A->B : 10 km, 200 min  (very short, very slow)
+     *   B->C : 10 km, 200 min  (very short, very slow)
+     * </pre>
+     * Shortest path: [A, B, C] — 20 km, 400 min
+     *   fuel = (20/8)*11.955 = 2*11.955 = 23.91
+     *   time = 400*0.5 = 200.0
+     *   total = 223.91
+     * Fastest path:  [A, C] — 100 km, 10 min
+     *   fuel = (100/8)*11.955 = 12*11.955 = 143.46
+     *   time = 10*0.5 = 5.0
+     *   total = 148.46
+     * Recommendation: fastest (148.46 < 223.91)
+     */
+    private static void testRecommendFastestWins() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,C,100,10\n" +
+                "A,B,10,200\n" +
+                "B,C,10,200\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        assertNotNull(rc, "recommend fastest wins: result exists");
+        assertEqual("fastest", rc.getRecommendation(), "recommend fastest wins: recommendation");
+        assertEqual("[A, B, C]", rc.getShortestPath().toString(), "recommend fastest wins: shortest path");
+        assertEqual("[A, C]", rc.getFastestPath().toString(), "recommend fastest wins: fastest path");
+        assertDoubleEqual(223.91, rc.getShortestTotalCost(), "recommend fastest wins: shortest total cost");
+        assertDoubleEqual(148.46, rc.getFastestTotalCost(), "recommend fastest wins: fastest total cost");
+    }
+
+    /**
+     * Both optimizations produce the same route — recommendation is "either".
+     * In buildTestGraph, A->B: shortest (100km, 60min) and fastest (60min)
+     * both go directly A->B.
+     */
+    private static void testRecommendSameRoute() throws IOException {
+        Ghana g = buildTestGraph();
+        Ghana.RouteComparison rc = g.recommendRoute("A", "B");
+        assertNotNull(rc, "recommend same route: result exists");
+        assertEqual("either", rc.getRecommendation(), "recommend same route: recommendation is either");
+        assertEqual(rc.getShortestPath().toString(), rc.getFastestPath().toString(),
+                "recommend same route: both paths identical");
+        assertDoubleEqual(rc.getShortestTotalCost(), rc.getFastestTotalCost(),
+                "recommend same route: both costs equal");
+    }
+
+    /**
+     * Same town — zero cost both ways, "either".
+     */
+    private static void testRecommendSameTown() throws IOException {
+        Ghana g = buildTestGraph();
+        Ghana.RouteComparison rc = g.recommendRoute("A", "A");
+        assertNotNull(rc, "recommend same town: result exists");
+        assertEqual("either", rc.getRecommendation(), "recommend same town: recommendation");
+        assertDoubleEqual(0.0, rc.getShortestTotalCost(), "recommend same town: shortest cost = 0");
+        assertDoubleEqual(0.0, rc.getFastestTotalCost(), "recommend same town: fastest cost = 0");
+    }
+
+    /**
+     * No path between towns — returns null.
+     */
+    private static void testRecommendNoPath() throws IOException {
+        Ghana g = buildTestGraph();
+        Ghana.RouteComparison rc = g.recommendRoute("D", "A");
+        assertNull(rc, "recommend no path: returns null");
+    }
+
+    /**
+     * Non-existent town — returns null.
+     */
+    private static void testRecommendNonExistentTown() throws IOException {
+        Ghana g = buildTestGraph();
+        Ghana.RouteComparison rc = g.recommendRoute("A", "Z");
+        assertNull(rc, "recommend non-existent town: returns null");
+    }
+
+    /**
+     * Case insensitive town names.
+     */
+    private static void testRecommendCaseInsensitive() throws IOException {
+        Ghana g = buildTestGraph();
+        Ghana.RouteComparison rc = g.recommendRoute("a", "B");
+        assertNotNull(rc, "recommend case-insensitive: result exists");
+        assertEqual("[A, B]", rc.getShortestPath().toString(), "recommend case-insensitive: path uses display name");
+    }
+
+    /**
+     * Verify getSummary() contains the comparison table and recommendation.
+     */
+    private static void testRecommendSummaryContent() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,C,50,200\n" +
+                "A,B,100,10\n" +
+                "B,C,100,10\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        String summary = rc.getSummary();
+        assertTrue(summary.contains("Shortest Route"), "summary contains 'Shortest Route'");
+        assertTrue(summary.contains("Fastest Route"), "summary contains 'Fastest Route'");
+        assertTrue(summary.contains("Total Cost"), "summary contains 'Total Cost'");
+        assertTrue(summary.contains("Recommendation"), "summary contains 'Recommendation'");
+        assertTrue(summary.contains("171.73"), "summary contains shortest total cost");
+        assertTrue(summary.contains("308.88"), "summary contains fastest total cost");
     }
 
     // -----------------------------------------------------------------------
