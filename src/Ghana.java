@@ -347,6 +347,8 @@ public class Ghana {
         }
 
         HashMap<String, Integer> distances = new HashMap<>();
+        HashMap<String, String> previous = new HashMap<>();
+
         for (String cityKey : cities.keySet()) {
             distances.put(cityKey, Integer.MAX_VALUE);
         }
@@ -361,7 +363,7 @@ public class Ghana {
             int currentDist = current.dist;
 
             if (currentKey.equals(endKey)) {
-                return currentDist;
+                break;
             }
 
             if (currentDist > distances.get(currentKey)) {
@@ -377,6 +379,7 @@ public class Ghana {
 
                     if (distances.containsKey(neighborKey) && newDist < distances.get(neighborKey)) {
                         distances.put(neighborKey, newDist);
+                        previous.put(neighborKey, currentKey);
                         pq.add(new Node(neighborKey, newDist));
                     }
                 }
@@ -384,26 +387,21 @@ public class Ghana {
         }
 
         int finalDist = distances.get(endKey);
-        return finalDist == Integer.MAX_VALUE ? -1 : finalDist;
-    }
+        if (finalDist == Integer.MAX_VALUE) {
+            return -1;
+        }
 
-    /**
-     * Finds all cities along the single shortest path between two cities,
-     * in order from origin to destination.
-     *
-     * <p>
-     * <strong>Not yet implemented.</strong> Will reconstruct the path
-     * produced by the shortest-path algorithm.
-     * </p>
-     *
-     * @param fromCity the name of the origin city (case-insensitive)
-     * @param toCity   the name of the destination city (case-insensitive)
-     * @return an ordered {@link List} of city names from origin to destination
-     *         (inclusive), or an empty list if no path exists
-     */
-    public List<String> getShortestPath(String fromCity, String toCity) {
-        // TODO: implement shortest-path reconstruction
-        return new ArrayList<>();
+        ArrayList<String> path = new ArrayList<>();
+        String curr = endKey;
+        while (curr != null) {
+            path.add(cities.get(curr).getName());
+            curr = previous.get(curr);
+        }
+        java.util.Collections.reverse(path);
+
+        System.out.println("Path: " + path);
+
+        return finalDist;
     }
 
     /**
