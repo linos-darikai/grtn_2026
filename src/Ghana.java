@@ -312,23 +312,64 @@ public class Ghana {
     }
 
     /**
-     * Computes the shortest distance between two towns in the network.
+     * Encapsulates the result of a shortest-distance path computation.
      *
-     * <p>
-     * Uses a shortest-path algorithm (Dijkstra) over the distance weights.
-     * </p>
+     * <p>Contains the total shortest distance and the ordered list of town
+     * names (using their original display casing) from origin to
+     * destination.</p>
+     */
+    public static class PathResult {
+        private final int distance;
+        private final List<String> path;
+
+        PathResult(int distance, List<String> path) {
+            this.distance = distance;
+            this.path = path;
+        }
+
+        /** @return the total shortest distance in kilometres */
+        public int getDistance() {
+            return distance;
+        }
+
+        /** @return the ordered list of town names from origin to destination */
+        public List<String> getPath() {
+            return path;
+        }
+
+        @Override
+        public String toString() {
+            return "PathResult{distance=" + distance + ", path=" + path + "}";
+        }
+    }
+
+    /**
+     * Computes the shortest distance between two towns in the network and
+     * returns both the distance and the ordered path.
+     *
+     * <p>Uses Dijkstra's algorithm over the distance weights (index 0 of
+     * each edge's {@code int[]}). The returned {@link PathResult} contains
+     * the total shortest distance and the list of town names (display
+     * casing) traversed from origin to destination.</p>
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
-     * @return the shortest distance in kilometres, or {@code -1} if no path
-     *         exists
+     * @return a {@link PathResult} with the shortest distance and path, or
+     *         {@code null} if no path exists or either town is not in the
+     *         network
      */
-    public int getDistance(String fromTown, String toTown) {
+    public PathResult getDistance(String fromTown, String toTown) {
         String startKey = normalizeKey(fromTown);
         String endKey = normalizeKey(toTown);
 
         if (!towns.containsKey(startKey) || !towns.containsKey(endKey)) {
-            return -1;
+            return null;
+        }
+
+        if (startKey.equals(endKey)) {
+            List<String> path = new ArrayList<>();
+            path.add(towns.get(startKey).getName());
+            return new PathResult(0, path);
         }
 
         class Node implements Comparable<Node> {
@@ -388,7 +429,7 @@ public class Ghana {
 
         int finalDist = distances.get(endKey);
         if (finalDist == Integer.MAX_VALUE) {
-            return -1;
+            return null;
         }
 
         ArrayList<String> path = new ArrayList<>();
@@ -399,9 +440,7 @@ public class Ghana {
         }
         java.util.Collections.reverse(path);
 
-        System.out.println("Path: " + path);
-
-        return finalDist;
+        return new PathResult(finalDist, path);
     }
 
     /**
@@ -496,6 +535,189 @@ public class Ghana {
         System.out.println("Fastest time path: " + path);
 
         return finalTime;
+    }
+
+    /** Fuel consumption rate: 8 kilometres per litre. */
+    private static final int KM_PER_LITRE = 8;
+
+    /** Fuel price in GHS per litre. */
+    private static final double FUEL_PRICE_PER_LITRE = 11.955;
+
+    /** Time cost in GHS per minute of travel. */
+    private static final double TIME_COST_PER_MINUTE = 0.5;
+
+    /**
+     * Computes the shortest-distance path between two towns by delegating
+     * to {@link #getDistance(String, String)}, then walks the returned path
+     * to accumulate the travel time from each edge's time weight.
+     *
+     * <p>Distance comes directly from the {@link PathResult}. Time is the
+     * sum of the time weights (index 1 of each edge's {@code int[]}) along
+     * the distance-optimal path, which may differ from the time-optimal
+     * path.</p>
+     *
+     * @param fromKey lowercase key of the origin town
+     * @param toKey   lowercase key of the destination town
+     * @return a two-element {@code int[]} where index 0 is total distance
+     *         (km) and index 1 is total time (min), or {@code null} if no
+     *         path exists or either key is not in the network
+     */
+    private int[] computeSegmentTotals(String fromKey, String toKey) {
+        PathResult result = getDistance(fromKey, toKey);
+        if (result == null) {
+            return null;
+        }
+
+        List<String> path = result.getPath();
+        int totalTime = 0;
+
+        for (int i = 0; i < path.size() - 1; i++) {
+            String currentKey = normalizeKey(path.get(i));
+            String nextKey = normalizeKey(path.get(i + 1));
+
+            Town current = towns.get(currentKey);
+            int[] edge = current.getNeighborEdge(nextKey);
+            totalTime += edge[1];
+        }
+
+        return new int[]{result.getDistance(), totalTime};
+    }
+
+    /**
+     * Walks a supplied route of waypoints and accumulates the total distance
+     * and total travel time across all consecutive segments.
+     *
+     * <p>For each pair of consecutive waypoints the method runs
+     * {@link #computeSegmentTotals(String, String)} (Dijkstra by distance)
+     * to obtain the shortest-distance path's distance and time. This means
+     * a route like {@code ["A", "D"]} works even if {@code A} and {@code D}
+     * do not share a direct edge — the algorithm will find the optimal
+     * multi-hop path for that segment.</p>
+     *
+     * <p>This is the shared core used by both {@link #getFuelCost} and
+     * {@link #getTotalCost}.</p>
+     *
+     * @param route an ordered list of waypoint town names from origin to
+     *              destination
+     * @return a two-element {@code int[]} where index 0 is the total
+     *         distance in km and index 1 is the total time in minutes, or
+     *         {@code null} if the route is invalid (no path between a pair
+     *         of consecutive waypoints, or a town does not exist)
+     */
+    private int[] computeRouteTotals(List<String> route) {
+        int totalDistance = 0;
+        int totalTime = 0;
+
+        for (int i = 0; i < route.size() - 1; i++) {
+            String fromKey = normalizeKey(route.get(i));
+            String toKey = normalizeKey(route.get(i + 1));
+
+            int[] segment = computeSegmentTotals(fromKey, toKey);
+            if (segment == null) {
+                return null;
+            }
+
+            totalDistance += segment[0];
+            totalTime += segment[1];
+        }
+
+        return new int[]{totalDistance, totalTime};
+    }
+
+    /**
+     * Computes the fuel (distance) cost for a supplied route through the
+     * network.
+     *
+     * <p>The route is a list of <strong>waypoints</strong>. For each pair of
+     * consecutive waypoints the shortest-distance path is computed via
+     * Dijkstra (see {@link #computeSegmentTotals(String, String)}), so the
+     * waypoints need not be direct neighbours.</p>
+     *
+     * <pre>
+     *   distance_cost = (total_distance_km / 8) &times; 11.955
+     * </pre>
+     *
+     * <p>where {@code /} is <strong>integer division</strong> (floor).
+     * Constants used:</p>
+     * <ul>
+     *   <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
+     *   <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
+     * </ul>
+     *
+     * <p><strong>Edge cases:</strong></p>
+     * <ul>
+     *   <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
+     *   <li>If no path exists between any consecutive pair of waypoints, or
+     *       a town is not in the network, returns {@code -1.0}.</li>
+     *   <li>Town names are matched case-insensitively.</li>
+     * </ul>
+     *
+     * @param route an ordered list of waypoint town names from origin to
+     *              destination
+     * @return the fuel cost in GHS, or {@code -1.0} if the route is invalid
+     */
+    public double getFuelCost(List<String> route) {
+        if (route == null || route.size() < 2) {
+            return 0.0;
+        }
+
+        int[] totals = computeRouteTotals(route);
+        if (totals == null) {
+            return -1.0;
+        }
+
+        int litresNeeded = totals[0] / KM_PER_LITRE;
+        return litresNeeded * FUEL_PRICE_PER_LITRE;
+    }
+
+    /**
+     * Computes the total travel cost for a supplied route, combining fuel
+     * cost and time cost.
+     *
+     * <p>The route is a list of <strong>waypoints</strong>. For each pair of
+     * consecutive waypoints the shortest-distance path is computed via
+     * Dijkstra (see {@link #computeSegmentTotals(String, String)}), so the
+     * waypoints need not be direct neighbours. Shares the same underlying
+     * {@link #computeRouteTotals(List)} helper as {@link #getFuelCost}.</p>
+     *
+     * <pre>
+     *   distance_cost = (total_distance_km / 8) &times; 11.955
+     *   time_cost     = total_time_min &times; 0.5
+     *   total_cost    = distance_cost + time_cost
+     * </pre>
+     *
+     * <p>Constants used:</p>
+     * <ul>
+     *   <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
+     *   <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
+     *   <li>Time cost: {@value #TIME_COST_PER_MINUTE} GHS per minute</li>
+     * </ul>
+     *
+     * <p><strong>Edge cases:</strong></p>
+     * <ul>
+     *   <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
+     *   <li>If no path exists between any consecutive pair of waypoints, or
+     *       a town is not in the network, returns {@code -1.0}.</li>
+     *   <li>Town names are matched case-insensitively.</li>
+     * </ul>
+     *
+     * @param route an ordered list of waypoint town names from origin to
+     *              destination
+     * @return the total cost in GHS, or {@code -1.0} if the route is invalid
+     */
+    public double getTotalCost(List<String> route) {
+        if (route == null || route.size() < 2) {
+            return 0.0;
+        }
+
+        int[] totals = computeRouteTotals(route);
+        if (totals == null) {
+            return -1.0;
+        }
+
+        double distanceCost = (totals[0] / KM_PER_LITRE) * FUEL_PRICE_PER_LITRE;
+        double timeCost = totals[1] * TIME_COST_PER_MINUTE;
+        return distanceCost + timeCost;
     }
 
     /**
