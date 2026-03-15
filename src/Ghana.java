@@ -405,6 +405,100 @@ public class Ghana {
     }
 
     /**
+     * Computes the fastest travel time between two towns in the network.
+     *
+     * <p>Uses Dijkstra's algorithm over the <strong>average travel time</strong>
+     * weights (index 1 of each edge's {@code int[]}). This may produce a
+     * different route than {@link #getDistance(String, String)}, which
+     * optimizes for distance instead.</p>
+     *
+     * @param fromTown the name of the origin town (case-insensitive)
+     * @param toTown   the name of the destination town (case-insensitive)
+     * @return the fastest travel time in minutes, or {@code -1} if no path
+     *         exists or either town is not in the network
+     */
+    public int getFastestTime(String fromTown, String toTown) {
+        String startKey = normalizeKey(fromTown);
+        String endKey = normalizeKey(toTown);
+
+        if (!towns.containsKey(startKey) || !towns.containsKey(endKey)) {
+            return -1;
+        }
+
+        class Node implements Comparable<Node> {
+            String name;
+            int time;
+
+            Node(String name, int time) {
+                this.name = name;
+                this.time = time;
+            }
+
+            @Override
+            public int compareTo(Node other) {
+                return Integer.compare(this.time, other.time);
+            }
+        }
+
+        HashMap<String, Integer> times = new HashMap<>();
+        HashMap<String, String> previous = new HashMap<>();
+
+        for (String townKey : towns.keySet()) {
+            times.put(townKey, Integer.MAX_VALUE);
+        }
+        times.put(startKey, 0);
+
+        PriorityQueue<Node> pq = new PriorityQueue<>();
+        pq.add(new Node(startKey, 0));
+
+        while (!pq.isEmpty()) {
+            Node current = pq.poll();
+            String currentKey = current.name;
+            int currentTime = current.time;
+
+            if (currentKey.equals(endKey)) {
+                break;
+            }
+
+            if (currentTime > times.get(currentKey)) {
+                continue;
+            }
+
+            Town currentTown = towns.get(currentKey);
+            if (currentTown != null && currentTown.getNeighbors() != null) {
+                for (Map.Entry<String, int[]> entry : currentTown.getNeighbors().entrySet()) {
+                    String neighborKey = entry.getKey();
+                    int edgeTime = entry.getValue()[1];
+                    int newTime = currentTime + edgeTime;
+
+                    if (times.containsKey(neighborKey) && newTime < times.get(neighborKey)) {
+                        times.put(neighborKey, newTime);
+                        previous.put(neighborKey, currentKey);
+                        pq.add(new Node(neighborKey, newTime));
+                    }
+                }
+            }
+        }
+
+        int finalTime = times.get(endKey);
+        if (finalTime == Integer.MAX_VALUE) {
+            return -1;
+        }
+
+        ArrayList<String> path = new ArrayList<>();
+        String curr = endKey;
+        while (curr != null) {
+            path.add(towns.get(curr).getName());
+            curr = previous.get(curr);
+        }
+        java.util.Collections.reverse(path);
+
+        System.out.println("Fastest time path: " + path);
+
+        return finalTime;
+    }
+
+    /**
      * Finds the top 3 shortest paths between two towns, ranked by total
      * distance.
      *
