@@ -66,6 +66,18 @@ public class GhanaTest {
         testDistanceCaseInsensitiveLookup();
         testDistanceChoosesShortestRoute();
 
+        System.out.println("\n=== getFastestTime Tests ===");
+        testFastestTimeDirectNeighbor();
+        testFastestTimeMultiHop();
+        testFastestTimeDiffersFromDistance();
+        testFastestTimeNoPath();
+        testFastestTimeNonExistentSource();
+        testFastestTimeNonExistentDestination();
+        testFastestTimeSameTown();
+        testFastestTimeDirectedOnly();
+        testFastestTimeCaseInsensitive();
+        testFastestTimeChoosesFastestRoute();
+
         System.out.println("\n=== Top 3 Shortest Paths Tests ===");
         testTop3ShortestPathsStandard();
         testTop3ShortestPathsFewerThan3();
@@ -520,6 +532,123 @@ public class GhanaTest {
 
         int dist = g.getDistance("A", "D");
         assertEqual(30, dist, "shortest among 3 routes: A->B->C->D = 30");
+    }
+
+    // -----------------------------------------------------------------------
+    //  getFastestTime Tests
+    // -----------------------------------------------------------------------
+
+    private static void testFastestTimeDirectNeighbor() throws IOException {
+        Ghana g = buildTestGraph();
+        // A->B: time = 60
+        int time = g.getFastestTime("A", "B");
+        assertEqual(60, time, "fastest direct neighbor: A->B = 60 min");
+    }
+
+    private static void testFastestTimeMultiHop() throws IOException {
+        Ghana g = buildTestGraph();
+        // A->B->C = 60+30 = 90 min, vs A->C = 120 min
+        int time = g.getFastestTime("A", "C");
+        assertEqual(90, time, "fastest multi-hop: A->B->C (90) beats A->C (120)");
+    }
+
+    /**
+     * The critical edge case: the fastest-time route is different from the
+     * shortest-distance route.
+     *
+     * <pre>
+     *   A --slow road-->  C : 50 km, 200 min  (short but slow)
+     *   A --fast road-->  B : 100 km, 10 min   (long but fast)
+     *   B --fast road-->  C : 100 km, 10 min   (long but fast)
+     * </pre>
+     *
+     * Shortest distance: A->C = 50 km
+     * Fastest time:      A->B->C = 10+10 = 20 min (vs A->C = 200 min)
+     */
+    private static void testFastestTimeDiffersFromDistance() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,C,50,200\n" +
+                "A,B,100,10\n" +
+                "B,C,100,10\n");
+
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        int dist = g.getDistance("A", "C");
+        int time = g.getFastestTime("A", "C");
+
+        assertEqual(50, dist, "distance-optimal: A->C = 50 km (direct)");
+        assertEqual(20, time, "time-optimal: A->B->C = 20 min (different route)");
+    }
+
+    private static void testFastestTimeNoPath() throws IOException {
+        Ghana g = buildTestGraph();
+        int time = g.getFastestTime("D", "A");
+        assertEqual(-1, time, "fastest no path: D->A returns -1");
+    }
+
+    private static void testFastestTimeNonExistentSource() throws IOException {
+        Ghana g = buildTestGraph();
+        int time = g.getFastestTime("Z", "A");
+        assertEqual(-1, time, "fastest non-existent source: returns -1");
+    }
+
+    private static void testFastestTimeNonExistentDestination() throws IOException {
+        Ghana g = buildTestGraph();
+        int time = g.getFastestTime("A", "Z");
+        assertEqual(-1, time, "fastest non-existent destination: returns -1");
+    }
+
+    private static void testFastestTimeSameTown() throws IOException {
+        Ghana g = buildTestGraph();
+        int time = g.getFastestTime("A", "A");
+        assertEqual(0, time, "fastest same town: A->A = 0 min");
+    }
+
+    private static void testFastestTimeDirectedOnly() throws IOException {
+        Ghana g = buildTestGraph();
+        int forward = g.getFastestTime("A", "B");
+        int reverse = g.getFastestTime("B", "A");
+
+        assertEqual(60, forward, "fastest directed: A->B = 60 min");
+        assertEqual(-1, reverse, "fastest directed: B->A = -1 (no reverse edge)");
+    }
+
+    private static void testFastestTimeCaseInsensitive() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "Accra,Tema,316,307\n");
+
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        int time = g.getFastestTime("accra", "TEMA");
+        assertEqual(307, time, "fastest case-insensitive: accra->TEMA = 307 min");
+    }
+
+    /**
+     * Three competing routes with different times:
+     * <pre>
+     *   A->B->C->D = 5+5+5   = 15 min  (fastest)
+     *   A->C->D    = 12+5     = 17 min
+     *   A->D       = 100      = 100 min (direct but slowest)
+     * </pre>
+     */
+    private static void testFastestTimeChoosesFastestRoute() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,B,10,5\n" +
+                "B,C,10,5\n" +
+                "C,D,10,5\n" +
+                "A,C,20,12\n" +
+                "A,D,5,100\n");
+
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        int time = g.getFastestTime("A", "D");
+        assertEqual(15, time, "fastest among 3 routes: A->B->C->D = 15 min");
     }
 
     // -----------------------------------------------------------------------
