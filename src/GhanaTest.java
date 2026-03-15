@@ -21,7 +21,7 @@ import java.util.HashMap;
  * <p>All test data files are created as temp files and deleted on JVM exit,
  * leaving no artefacts on disk.</p>
  *
- * @author GRTN 2026
+ * @author Stanley and Linos 2026
  * @version 1.0
  */
 public class GhanaTest {
