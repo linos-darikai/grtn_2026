@@ -11,19 +11,19 @@ import java.util.PriorityQueue;
  * 
  * @author Stanley and Linos 2026
  * @version 1.1
- * @see City
+ * @see Town
  */
 public class Ghana {
 
     /**
-     * Master map of all cities in the network.
+     * Master map of all towns in the network.
      * <p>
-     * Key: <strong>lowercase</strong> city name (e.g. {@code "cape coast"}).<br>
-     * Value: the corresponding {@link City} instance, which stores the
+     * Key: <strong>lowercase</strong> town name (e.g. {@code "cape coast"}).<br>
+     * Value: the corresponding {@link Town} instance, which stores the
      * original display name.
      * </p>
      */
-    private HashMap<String, City> cities;
+    private HashMap<String, Town> towns;
 
     /**
      * Running count of directed edges (roads) loaded into the network.
@@ -31,15 +31,15 @@ public class Ghana {
     private int edgeCount;
 
     /**
-     * Constructs an empty {@code Ghana} network with no cities loaded.
+     * Constructs an empty {@code Ghana} network with no towns loaded.
      */
     public Ghana() {
-        this.cities = new HashMap<>();
+        this.towns = new HashMap<>();
         this.edgeCount = 0;
     }
 
     /**
-     * Normalizes a city name into a consistent lowercase key for map storage
+     * Normalizes a town name into a consistent lowercase key for map storage
      * and lookup.
      *
      * <p>
@@ -47,7 +47,7 @@ public class Ghana {
      * {@code " ACCRA "} all map to the same key {@code "accra"}.
      * </p>
      *
-     * @param name the raw city name
+     * @param name the raw town name
      * @return the trimmed, lowercased key
      */
     private String normalizeKey(String name) {
@@ -59,7 +59,7 @@ public class Ghana {
     // -----------------------------------------------------------------------
 
     /**
-     * Loads city and edge data from the specified file into the network.
+     * Loads town and edge data from the specified file into the network.
      *
      * <p>
      * The method inspects the file extension to choose the correct parser:
@@ -81,7 +81,7 @@ public class Ghana {
      * @throws IOException              if the file cannot be read
      * @throws IllegalArgumentException if the file extension is unsupported
      */
-    public void loadCities(String filePath) throws IOException {
+    public void loadTowns(String filePath) throws IOException {
         if (filePath.endsWith(".csv")) {
             loadFromCsv(filePath);
         } else if (filePath.endsWith(".txt")) {
@@ -181,9 +181,9 @@ public class Ghana {
      * </p>
      *
      * <p>
-     * City names are stored and looked up using {@link #normalizeKey(String)}
+     * Town names are stored and looked up using {@link #normalizeKey(String)}
      * to guarantee case-insensitive matching. The first-encountered casing of
-     * a city name becomes its display name in the {@link City} object.
+     * a town name becomes its display name in the {@link Town} object.
      * </p>
      *
      * @param parts      the split columns from one data line
@@ -202,7 +202,7 @@ public class Ghana {
 
         if (sourceRaw.isEmpty() || destRaw.isEmpty()) {
             System.err.println("WARNING [" + filePath + ":" + lineNumber +
-                    "] Skipping line — blank city name detected");
+                    "] Skipping line — blank town name detected");
             return;
         }
 
@@ -226,12 +226,12 @@ public class Ghana {
         String sourceKey = normalizeKey(sourceRaw);
         String destKey = normalizeKey(destRaw);
 
-        cities.putIfAbsent(sourceKey, new City(sourceRaw));
-        cities.putIfAbsent(destKey, new City(destRaw));
+        towns.putIfAbsent(sourceKey, new Town(sourceRaw));
+        towns.putIfAbsent(destKey, new Town(destRaw));
 
-        City sourceCity = cities.get(sourceKey);
+        Town sourceTown = towns.get(sourceKey);
 
-        if (sourceCity.hasNeighbor(destKey)) {
+        if (sourceTown.hasNeighbor(destKey)) {
             System.err.println("WARNING [" + filePath + ":" + lineNumber +
                     "] Duplicate directed edge " + sourceRaw + " -> " + destRaw +
                     " — overwriting previous values");
@@ -239,38 +239,38 @@ public class Ghana {
             edgeCount++;
         }
 
-        sourceCity.addNeighbor(destKey, distance, time);
+        sourceTown.addNeighbor(destKey, distance, time);
     }
 
     /**
-     * Returns the full map of all cities in the network.
+     * Returns the full map of all towns in the network.
      *
-     * @return a {@link HashMap} mapping normalized city names to {@link City}
+     * @return a {@link HashMap} mapping normalized town names to {@link Town}
      *         objects; never {@code null}
      */
-    public HashMap<String, City> getCities() {
-        return cities;
+    public HashMap<String, Town> getTowns() {
+        return towns;
     }
 
     /**
-     * Retrieves a single {@link City} by name (case-insensitive).
+     * Retrieves a single {@link Town} by name (case-insensitive).
      *
-     * @param name the name of the city; casing and leading/trailing whitespace
+     * @param name the name of the town; casing and leading/trailing whitespace
      *             are ignored
-     * @return the {@link City} instance, or {@code null} if no city with that
+     * @return the {@link Town} instance, or {@code null} if no town with that
      *         name exists in the network
      */
-    public City getCity(String name) {
-        return cities.get(normalizeKey(name));
+    public Town getTown(String name) {
+        return towns.get(normalizeKey(name));
     }
 
     /**
-     * Returns the number of cities (vertices) in the network.
+     * Returns the number of towns (vertices) in the network.
      *
-     * @return the total city count
+     * @return the total town count
      */
-    public int getCityCount() {
-        return cities.size();
+    public int getTownCount() {
+        return towns.size();
     }
 
     /**
@@ -283,25 +283,25 @@ public class Ghana {
     }
 
     /**
-     * Returns the adjacency map for a given city — that is, all outgoing edges
-     * from that city.
+     * Returns the adjacency map for a given town — that is, all outgoing edges
+     * from that town.
      *
-     * @param cityName the name of the city whose neighbors are requested
-     * @return the neighbor map, or {@code null} if the city does not exist
+     * @param townName the name of the town whose neighbors are requested
+     * @return the neighbor map, or {@code null} if the town does not exist
      */
-    public HashMap<String, int[]> getNeighbors(String cityName) {
-        City city = cities.get(normalizeKey(cityName));
-        if (city == null) {
+    public HashMap<String, int[]> getNeighbors(String townName) {
+        Town town = towns.get(normalizeKey(townName));
+        if (town == null) {
             return null;
         }
-        return city.getNeighbors();
+        return town.getNeighbors();
     }
 
     /**
-     * Prints the total number of cities (vertices) in the network to
+     * Prints the total number of towns (vertices) in the network to
      */
-    public void displayTotalCities() {
-        System.out.println("Total cities: " + cities.size());
+    public void displayTotalTowns() {
+        System.out.println("Total towns: " + towns.size());
     }
 
     /**
@@ -312,22 +312,22 @@ public class Ghana {
     }
 
     /**
-     * Computes the shortest distance between two cities in the network.
+     * Computes the shortest distance between two towns in the network.
      *
      * <p>
      * Uses a shortest-path algorithm (Dijkstra) over the distance weights.
      * </p>
      *
-     * @param fromCity the name of the origin city (case-insensitive)
-     * @param toCity   the name of the destination city (case-insensitive)
+     * @param fromTown the name of the origin town (case-insensitive)
+     * @param toTown   the name of the destination town (case-insensitive)
      * @return the shortest distance in kilometres, or {@code -1} if no path
      *         exists
      */
-    public int getDistance(String fromCity, String toCity) {
-        String startKey = normalizeKey(fromCity);
-        String endKey = normalizeKey(toCity);
+    public int getDistance(String fromTown, String toTown) {
+        String startKey = normalizeKey(fromTown);
+        String endKey = normalizeKey(toTown);
 
-        if (!cities.containsKey(startKey) || !cities.containsKey(endKey)) {
+        if (!towns.containsKey(startKey) || !towns.containsKey(endKey)) {
             return -1;
         }
 
@@ -349,8 +349,8 @@ public class Ghana {
         HashMap<String, Integer> distances = new HashMap<>();
         HashMap<String, String> previous = new HashMap<>();
 
-        for (String cityKey : cities.keySet()) {
-            distances.put(cityKey, Integer.MAX_VALUE);
+        for (String townKey : towns.keySet()) {
+            distances.put(townKey, Integer.MAX_VALUE);
         }
         distances.put(startKey, 0);
 
@@ -370,9 +370,9 @@ public class Ghana {
                 continue;
             }
 
-            City currentCity = cities.get(currentKey);
-            if (currentCity != null && currentCity.getNeighbors() != null) {
-                for (Map.Entry<String, int[]> entry : currentCity.getNeighbors().entrySet()) {
+            Town currentTown = towns.get(currentKey);
+            if (currentTown != null && currentTown.getNeighbors() != null) {
+                for (Map.Entry<String, int[]> entry : currentTown.getNeighbors().entrySet()) {
                     String neighborKey = entry.getKey();
                     int edgeDistance = entry.getValue()[0];
                     int newDist = currentDist + edgeDistance;
@@ -394,7 +394,7 @@ public class Ghana {
         ArrayList<String> path = new ArrayList<>();
         String curr = endKey;
         while (curr != null) {
-            path.add(cities.get(curr).getName());
+            path.add(towns.get(curr).getName());
             curr = previous.get(curr);
         }
         java.util.Collections.reverse(path);
@@ -405,7 +405,7 @@ public class Ghana {
     }
 
     /**
-     * Finds the top 3 shortest paths between two cities, ranked by total
+     * Finds the top 3 shortest paths between two towns, ranked by total
      * distance.
      *
      * <p>
@@ -414,25 +414,25 @@ public class Ghana {
      * routes.
      * </p>
      *
-     * @param fromCity the name of the origin city (case-insensitive)
-     * @param toCity   the name of the destination city (case-insensitive)
+     * @param fromTown the name of the origin town (case-insensitive)
+     * @param toTown   the name of the destination town (case-insensitive)
      * @return a {@link List} of up to 3 paths, each path being an ordered
-     *         {@link List} of city names from origin to destination; fewer
+     *         {@link List} of town names from origin to destination; fewer
      *         than 3 entries are returned if fewer distinct paths exist
      */
-    public List<List<String>> getTop3ShortestPaths(String fromCity, String toCity) {
+    public List<List<String>> getTop3ShortestPaths(String fromTown, String toTown) {
         // TODO: implement k-shortest-paths (k=3)
         return new ArrayList<>();
     }
 
     /**
-     * Returns a summary string showing the total number of cities and edges
+     * Returns a summary string showing the total number of towns and edges
      * in the network.
      *
-     * @return a string in the format {@code Ghana{cities=N, edges=M}}
+     * @return a string in the format {@code Ghana{towns=N, edges=M}}
      */
     @Override
     public String toString() {
-        return "Ghana{cities=" + cities.size() + ", edges=" + edgeCount + "}";
+        return "Ghana{towns=" + towns.size() + ", edges=" + edgeCount + "}";
     }
 }
