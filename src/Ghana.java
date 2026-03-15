@@ -421,8 +421,74 @@ public class Ghana {
      *         than 3 entries are returned if fewer distinct paths exist
      */
     public List<List<String>> getTop3ShortestPaths(String fromTown, String toTown) {
-        // TODO: implement k-shortest-paths (k=3)
-        return new ArrayList<>();
+        String startKey = normalizeKey(fromTown);
+        String endKey = normalizeKey(toTown);
+
+        List<List<String>> top3Paths = new ArrayList<>();
+
+        if (!towns.containsKey(startKey) || !towns.containsKey(endKey)) {
+            return top3Paths;
+        }
+
+        class PathNode implements Comparable<PathNode> {
+            String currentTownKey;
+            int dist;
+            List<String> pathKeys;
+
+            PathNode(String currentTownKey, int dist, List<String> pathKeys) {
+                this.currentTownKey = currentTownKey;
+                this.dist = dist;
+                this.pathKeys = pathKeys;
+            }
+
+            @Override
+            public int compareTo(PathNode other) {
+                return Integer.compare(this.dist, other.dist);
+            }
+        }
+
+        PriorityQueue<PathNode> pq = new PriorityQueue<>();
+        List<String> initKeys = new ArrayList<>();
+        initKeys.add(startKey);
+        
+        pq.add(new PathNode(startKey, 0, initKeys));
+
+        while (!pq.isEmpty()) {
+            PathNode current = pq.poll();
+            String u = current.currentTownKey;
+
+            if (u.equals(endKey)) {
+                List<String> names = new ArrayList<>();
+                for (String key : current.pathKeys) {
+                    names.add(towns.get(key).getName());
+                }
+                top3Paths.add(names);
+                
+                if (top3Paths.size() == 3) {
+                    break;
+                }
+                continue;
+            }
+
+            Town currentTown = towns.get(u);
+            if (currentTown != null && currentTown.getNeighbors() != null) {
+                for (Map.Entry<String, int[]> entry : currentTown.getNeighbors().entrySet()) {
+                    String v = entry.getKey();
+                    int weight = entry.getValue()[0];
+
+                    if (current.pathKeys.contains(v)) {
+                        continue;
+                    }
+
+                    List<String> newPathKeys = new ArrayList<>(current.pathKeys);
+                    newPathKeys.add(v);
+
+                    pq.add(new PathNode(v, current.dist + weight, newPathKeys));
+                }
+            }
+        }
+
+        return top3Paths;
     }
 
     /**

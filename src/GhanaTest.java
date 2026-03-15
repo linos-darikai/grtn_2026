@@ -66,6 +66,11 @@ public class GhanaTest {
         testDistanceCaseInsensitiveLookup();
         testDistanceChoosesShortestRoute();
 
+        System.out.println("\n=== Top 3 Shortest Paths Tests ===");
+        testTop3ShortestPathsStandard();
+        testTop3ShortestPathsFewerThan3();
+        testTop3ShortestPathsNoPath();
+
         System.out.println("\n=== Results ===");
         System.out.println("Passed: " + passed);
         System.out.println("Failed: " + failed);
@@ -515,5 +520,43 @@ public class GhanaTest {
 
         int dist = g.getDistance("A", "D");
         assertEqual(30, dist, "shortest among 3 routes: A->B->C->D = 30");
+    }
+
+    // -----------------------------------------------------------------------
+    //  Top 3 Shortest Paths Tests
+    // -----------------------------------------------------------------------
+
+    private static void testTop3ShortestPathsStandard() throws IOException {
+        File f = createTempCsv(
+                "source,destination,distance_km,avg_time_min\n" +
+                "A,B,10,10\n" +
+                "B,C,10,10\n" +
+                "A,C,25,25\n" +
+                "A,D,15,15\n" +
+                "D,C,15,15\n" +
+                "A,E,20,20\n" +
+                "E,C,20,20\n");
+        Ghana g = new Ghana();
+        g.loadTowns(f.getPath());
+
+        java.util.List<java.util.List<String>> paths = g.getTop3ShortestPaths("A", "C");
+        assertEqual(3, paths.size(), "Standard top 3 paths: Should return exactly 3 paths");
+        assertEqual("[A, B, C]", paths.get(0).toString(), "First shortest path");
+        assertEqual("[A, C]", paths.get(1).toString(), "Second shortest path");
+        assertEqual("[A, D, C]", paths.get(2).toString(), "Third shortest path");
+    }
+
+    private static void testTop3ShortestPathsFewerThan3() throws IOException {
+        Ghana g = buildTestGraph();
+        java.util.List<java.util.List<String>> paths = g.getTop3ShortestPaths("A", "C");
+        assertEqual(2, paths.size(), "Fewer than 3: Should return exactly 2 paths");
+        assertEqual("[A, B, C]", paths.get(0).toString(), "First shortest path");
+        assertEqual("[A, C]", paths.get(1).toString(), "Second shortest path");
+    }
+
+    private static void testTop3ShortestPathsNoPath() throws IOException {
+        Ghana g = buildTestGraph();
+        java.util.List<java.util.List<String>> paths = g.getTop3ShortestPaths("D", "A");
+        assertEqual(0, paths.size(), "No path: Should return 0 paths");
     }
 }
