@@ -499,7 +499,7 @@ public class GhanaTest {
 
     private static void testDistanceDirectNeighbor() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("A", "B");
+        PathResult result = g.getDistance("A", "B");
         assertNotNull(result, "direct neighbor: A->B path exists");
         assertEqual(100, result.getDistance(), "direct neighbor: A->B = 100");
         assertEqual("[A, B]", result.getPath().toString(), "direct neighbor path: [A, B]");
@@ -507,7 +507,7 @@ public class GhanaTest {
 
     private static void testDistanceMultiHop() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("A", "C");
+        PathResult result = g.getDistance("A", "C");
         assertNotNull(result, "multi-hop: A->C path exists");
         assertEqual(150, result.getDistance(), "multi-hop: A->B->C (150) beats A->C (200)");
         assertEqual("[A, B, C]", result.getPath().toString(), "multi-hop path: [A, B, C]");
@@ -515,25 +515,25 @@ public class GhanaTest {
 
     private static void testDistanceNoPath() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("D", "A");
+        PathResult result = g.getDistance("D", "A");
         assertNull(result, "no path: D->A returns null");
     }
 
     private static void testDistanceNonExistentSource() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("Z", "A");
+        PathResult result = g.getDistance("Z", "A");
         assertNull(result, "non-existent source: returns null");
     }
 
     private static void testDistanceNonExistentDestination() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("A", "Z");
+        PathResult result = g.getDistance("A", "Z");
         assertNull(result, "non-existent destination: returns null");
     }
 
     private static void testDistanceSameTown() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getDistance("A", "A");
+        PathResult result = g.getDistance("A", "A");
         assertNotNull(result, "same town: A->A path exists");
         assertEqual(0, result.getDistance(), "same town: A->A = 0");
         assertEqual("[A]", result.getPath().toString(), "same town path: [A]");
@@ -541,8 +541,8 @@ public class GhanaTest {
 
     private static void testDistanceDirectedOnly() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult forward = g.getDistance("A", "B");
-        Ghana.PathResult reverse = g.getDistance("B", "A");
+        PathResult forward = g.getDistance("A", "B");
+        PathResult reverse = g.getDistance("B", "A");
 
         assertNotNull(forward, "directed: A->B path exists");
         assertEqual(100, forward.getDistance(), "directed: A->B = 100");
@@ -557,7 +557,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.PathResult result = g.getDistance("accra", "TEMA");
+        PathResult result = g.getDistance("accra", "TEMA");
         assertNotNull(result, "case-insensitive: path exists");
         assertEqual(316, result.getDistance(), "case-insensitive distance: accra->TEMA = 316");
         assertEqual("[Accra, Tema]", result.getPath().toString(), "case-insensitive path: [Accra, Tema]");
@@ -575,7 +575,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.PathResult result = g.getDistance("A", "D");
+        PathResult result = g.getDistance("A", "D");
         assertNotNull(result, "shortest route: path exists");
         assertEqual(30, result.getDistance(), "shortest among 3 routes: A->B->C->D = 30");
         assertEqual("[A, B, C, D]", result.getPath().toString(), "shortest route path: [A, B, C, D]");
@@ -587,7 +587,7 @@ public class GhanaTest {
 
     private static void testFastestTimeDirectNeighbor() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("A", "B");
+        PathResult result = g.getFastestTime("A", "B");
         assertNotNull(result, "fastest direct neighbor: path exists");
         assertEqual(60, result.getTime(), "fastest direct neighbor: A->B = 60 min");
         assertEqual("[A, B]", result.getPath().toString(), "fastest direct neighbor path: [A, B]");
@@ -595,7 +595,7 @@ public class GhanaTest {
 
     private static void testFastestTimeMultiHop() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("A", "C");
+        PathResult result = g.getFastestTime("A", "C");
         assertNotNull(result, "fastest multi-hop: path exists");
         assertEqual(90, result.getTime(), "fastest multi-hop: A->B->C (90) beats A->C (120)");
         assertEqual("[A, B, C]", result.getPath().toString(), "fastest multi-hop path: [A, B, C]");
@@ -624,8 +624,8 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.PathResult distResult = g.getDistance("A", "C");
-        Ghana.PathResult timeResult = g.getFastestTime("A", "C");
+        PathResult distResult = g.getDistance("A", "C");
+        PathResult timeResult = g.getFastestTime("A", "C");
 
         assertNotNull(distResult, "distance-optimal: A->C path exists");
         assertEqual(50, distResult.getDistance(), "distance-optimal: A->C = 50 km (direct)");
@@ -638,25 +638,25 @@ public class GhanaTest {
 
     private static void testFastestTimeNoPath() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("D", "A");
+        PathResult result = g.getFastestTime("D", "A");
         assertNull(result, "fastest no path: D->A returns null");
     }
 
     private static void testFastestTimeNonExistentSource() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("Z", "A");
+        PathResult result = g.getFastestTime("Z", "A");
         assertNull(result, "fastest non-existent source: returns null");
     }
 
     private static void testFastestTimeNonExistentDestination() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("A", "Z");
+        PathResult result = g.getFastestTime("A", "Z");
         assertNull(result, "fastest non-existent destination: returns null");
     }
 
     private static void testFastestTimeSameTown() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult result = g.getFastestTime("A", "A");
+        PathResult result = g.getFastestTime("A", "A");
         assertNotNull(result, "fastest same town: path exists");
         assertEqual(0, result.getTime(), "fastest same town: A->A = 0 min");
         assertEqual("[A]", result.getPath().toString(), "fastest same town path: [A]");
@@ -664,8 +664,8 @@ public class GhanaTest {
 
     private static void testFastestTimeDirectedOnly() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.PathResult forward = g.getFastestTime("A", "B");
-        Ghana.PathResult reverse = g.getFastestTime("B", "A");
+        PathResult forward = g.getFastestTime("A", "B");
+        PathResult reverse = g.getFastestTime("B", "A");
 
         assertNotNull(forward, "fastest directed: A->B path exists");
         assertEqual(60, forward.getTime(), "fastest directed: A->B = 60 min");
@@ -680,7 +680,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.PathResult result = g.getFastestTime("accra", "TEMA");
+        PathResult result = g.getFastestTime("accra", "TEMA");
         assertNotNull(result, "fastest case-insensitive: path exists");
         assertEqual(307, result.getTime(), "fastest case-insensitive: accra->TEMA = 307 min");
         assertEqual("[Accra, Tema]", result.getPath().toString(), "fastest case-insensitive path: [Accra, Tema]");
@@ -706,7 +706,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.PathResult result = g.getFastestTime("A", "D");
+        PathResult result = g.getFastestTime("A", "D");
         assertNotNull(result, "fastest chooses best: path exists");
         assertEqual(15, result.getTime(), "fastest among 3 routes: A->B->C->D = 15 min");
         assertEqual("[A, B, C, D]", result.getPath().toString(), "fastest chooses best path: [A, B, C, D]");
@@ -1015,7 +1015,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        RouteComparison rc = g.recommendRoute("A", "C");
         assertNotNull(rc, "recommend shortest wins: result exists");
         assertEqual("shortest", rc.getRecommendation(), "recommend shortest wins: recommendation");
         assertEqual("[A, C]", rc.getShortestPath().toString(), "recommend shortest wins: shortest path");
@@ -1054,7 +1054,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        RouteComparison rc = g.recommendRoute("A", "C");
         assertNotNull(rc, "recommend fastest wins: result exists");
         assertEqual("fastest", rc.getRecommendation(), "recommend fastest wins: recommendation");
         assertEqual("[A, B, C]", rc.getShortestPath().toString(), "recommend fastest wins: shortest path");
@@ -1070,7 +1070,7 @@ public class GhanaTest {
      */
     private static void testRecommendSameRoute() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.RouteComparison rc = g.recommendRoute("A", "B");
+        RouteComparison rc = g.recommendRoute("A", "B");
         assertNotNull(rc, "recommend same route: result exists");
         assertEqual("either", rc.getRecommendation(), "recommend same route: recommendation is either");
         assertEqual(rc.getShortestPath().toString(), rc.getFastestPath().toString(),
@@ -1084,7 +1084,7 @@ public class GhanaTest {
      */
     private static void testRecommendSameTown() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.RouteComparison rc = g.recommendRoute("A", "A");
+        RouteComparison rc = g.recommendRoute("A", "A");
         assertNotNull(rc, "recommend same town: result exists");
         assertEqual("either", rc.getRecommendation(), "recommend same town: recommendation");
         assertDoubleEqual(0.0, rc.getShortestTotalCost(), "recommend same town: shortest cost = 0");
@@ -1096,7 +1096,7 @@ public class GhanaTest {
      */
     private static void testRecommendNoPath() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.RouteComparison rc = g.recommendRoute("D", "A");
+        RouteComparison rc = g.recommendRoute("D", "A");
         assertNull(rc, "recommend no path: returns null");
     }
 
@@ -1105,7 +1105,7 @@ public class GhanaTest {
      */
     private static void testRecommendNonExistentTown() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.RouteComparison rc = g.recommendRoute("A", "Z");
+        RouteComparison rc = g.recommendRoute("A", "Z");
         assertNull(rc, "recommend non-existent town: returns null");
     }
 
@@ -1114,7 +1114,7 @@ public class GhanaTest {
      */
     private static void testRecommendCaseInsensitive() throws IOException {
         Ghana g = buildTestGraph();
-        Ghana.RouteComparison rc = g.recommendRoute("a", "B");
+        RouteComparison rc = g.recommendRoute("a", "B");
         assertNotNull(rc, "recommend case-insensitive: result exists");
         assertEqual("[A, B]", rc.getShortestPath().toString(), "recommend case-insensitive: path uses display name");
     }
@@ -1131,7 +1131,7 @@ public class GhanaTest {
         Ghana g = new Ghana();
         g.loadTowns(f.getPath());
 
-        Ghana.RouteComparison rc = g.recommendRoute("A", "C");
+        RouteComparison rc = g.recommendRoute("A", "C");
         String summary = rc.getSummary();
         assertTrue(summary.contains("Shortest Route"), "summary contains 'Shortest Route'");
         assertTrue(summary.contains("Fastest Route"), "summary contains 'Fastest Route'");
