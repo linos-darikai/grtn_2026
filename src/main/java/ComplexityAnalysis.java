@@ -38,12 +38,12 @@ public class ComplexityAnalysis {
         System.out.println("GHANA ROAD TRANSPORT NETWORK - COMPLEXITY ANALYSIS");
         System.out.println("=".repeat(80));
         System.out.println("\nPhase 1: Running actual tests from 10 to " + MAX_ACTUAL_NODES + " nodes");
-        System.out.println("Phase 2: Predicting performance from " + MAX_ACTUAL_NODES + " to " + MAX_PREDICTED_NODES + " nodes");
+        System.out.println(
+                "Phase 2: Predicting performance from " + MAX_ACTUAL_NODES + " to " + MAX_PREDICTED_NODES + " nodes");
         System.out.println("Please wait...\n");
 
         List<ComplexityResult> actualResults = new ArrayList<>();
 
-        // Phase 1: Actual measurements
         for (int nodeCount = 10; nodeCount <= MAX_ACTUAL_NODES; nodeCount += INCREMENT) {
             if (nodeCount % 100 == 0) {
                 System.out.println("Testing " + nodeCount + " nodes...");
@@ -56,16 +56,12 @@ public class ComplexityAnalysis {
         System.out.println("Actual testing complete! Computing predictions...");
         System.out.println("=".repeat(80));
 
-        // Phase 2: Predict future performance
         List<ComplexityResult> predictedResults = predictPerformance(actualResults);
 
         // Display the plots
         SwingUtilities.invokeLater(() -> displayPlots(actualResults, predictedResults));
     }
 
-    /**
-     * Analyzes complexity for a graph with the specified number of nodes
-     */
     private static ComplexityResult analyzeComplexity(int nodeCount) {
         Ghana ghana = createSyntheticGraph(nodeCount);
 
@@ -81,12 +77,10 @@ public class ComplexityAnalysis {
         result.nodeCount = nodeCount;
         result.edgeCount = ghana.getEdgeCount();
 
-        // Warm up JVM
         for (int i = 0; i < 3; i++) {
             ghana.getFastestTime(startTown, endTown);
         }
 
-        // Test 1: getFastestTime()
         long start = System.nanoTime();
         int runs = Math.max(1, 10 / (nodeCount / 1000 + 1));
         for (int i = 0; i < runs; i++) {
@@ -95,7 +89,7 @@ public class ComplexityAnalysis {
         long end = System.nanoTime();
         result.fastestTimeMs = (end - start) / 1_000_000.0 / runs;
 
-        // Test 2: getTop3PathsByTotalCost()
+        // getTop3PathsByTotalCost()
         start = System.nanoTime();
         runs = Math.max(1, 5 / (nodeCount / 1000 + 1));
         for (int i = 0; i < runs; i++) {
@@ -104,7 +98,7 @@ public class ComplexityAnalysis {
         end = System.nanoTime();
         result.top3PathsMs = (end - start) / 1_000_000.0 / runs;
 
-        // Test 3: recommendRoute()
+        // recommendRoute()
         start = System.nanoTime();
         runs = Math.max(1, 10 / (nodeCount / 1000 + 1));
         for (int i = 0; i < runs; i++) {
@@ -116,9 +110,6 @@ public class ComplexityAnalysis {
         return result;
     }
 
-    /**
-     * Creates a synthetic connected graph with realistic road network properties
-     */
     private static Ghana createSyntheticGraph(int nodeCount) {
         Ghana ghana = new Ghana();
 
@@ -161,14 +152,9 @@ public class ComplexityAnalysis {
         return ghana;
     }
 
-    /**
-     * Predicts performance from MAX_ACTUAL_NODES to MAX_PREDICTED_NODES
-     * using curve fitting based on theoretical complexity
-     */
     private static List<ComplexityResult> predictPerformance(List<ComplexityResult> actualResults) {
         List<ComplexityResult> predictions = new ArrayList<>();
 
-        // Get reference point (last actual measurement)
         ComplexityResult reference = actualResults.get(actualResults.size() - 1);
         int refNodes = reference.nodeCount;
 
@@ -177,34 +163,28 @@ public class ComplexityAnalysis {
         System.out.println("  - getTop3Paths: O(V²)");
         System.out.println();
 
-        // Calculate scaling factors from last few measurements for better accuracy
         int sampleSize = Math.min(20, actualResults.size() / 2);
         ComplexityResult earlier = actualResults.get(actualResults.size() - sampleSize);
 
         double nodeRatio = (double) refNodes / earlier.nodeCount;
         double logRatio = Math.log(refNodes) / Math.log(earlier.nodeCount);
 
-        // Empirical scaling factors
         double fastestScaleFactor = reference.fastestTimeMs / earlier.fastestTimeMs;
         double top3ScaleFactor = reference.top3PathsMs / earlier.top3PathsMs;
         double recommendScaleFactor = reference.recommendRouteMs / earlier.recommendRouteMs;
 
-        // Extract base constants: time = k * complexity_function
         double kFastest = reference.fastestTimeMs / (refNodes * Math.log(refNodes));
         double kTop3 = reference.top3PathsMs / (refNodes * refNodes);
         double kRecommend = reference.recommendRouteMs / (refNodes * Math.log(refNodes));
 
-        // Generate predictions
         for (int nodeCount = MAX_ACTUAL_NODES + INCREMENT; nodeCount <= MAX_PREDICTED_NODES; nodeCount += INCREMENT) {
             ComplexityResult pred = new ComplexityResult();
             pred.nodeCount = nodeCount;
             pred.edgeCount = (int) (nodeCount * 4.5); // Estimated edge count
 
-            // Predict based on O(V log V) for Dijkstra variants
             pred.fastestTimeMs = kFastest * nodeCount * Math.log(nodeCount);
             pred.recommendRouteMs = kRecommend * nodeCount * Math.log(nodeCount);
 
-            // Predict based on O(V²) for K-shortest paths
             pred.top3PathsMs = kTop3 * nodeCount * nodeCount;
 
             predictions.add(pred);
@@ -217,12 +197,11 @@ public class ComplexityAnalysis {
      * Creates and displays the plots with actual and predicted data
      */
     private static void displayPlots(List<ComplexityResult> actualResults,
-                                     List<ComplexityResult> predictedResults) {
-        // Create datasets
+            List<ComplexityResult> predictedResults) {
+        // create datasets
         XYSeriesCollection actualDataset = new XYSeriesCollection();
         XYSeriesCollection predictedDataset = new XYSeriesCollection();
 
-        // Actual measurements
         XYSeries actualFastest = new XYSeries("getFastestTime() - Measured");
         XYSeries actualTop3 = new XYSeries("getTop3Paths() - Measured");
         XYSeries actualRecommend = new XYSeries("recommendRoute() - Measured");
@@ -258,31 +237,26 @@ public class ComplexityAnalysis {
         predictedDataset.addSeries(predictedTop3);
         predictedDataset.addSeries(predictedRecommend);
 
-        // Create chart
         JFreeChart chart = ChartFactory.createXYLineChart(
-            "Algorithm Complexity: Measured (10-900) vs Predicted (900-5000)",
-            "Number of Nodes",
-            "Execution Time (ms)",
-            actualDataset,
-            PlotOrientation.VERTICAL,
-            true,
-            true,
-            false
-        );
+                "Algorithm Complexity: Measured (10-900) vs Predicted (900-5000)",
+                "Number of Nodes",
+                "Execution Time (ms)",
+                actualDataset,
+                PlotOrientation.VERTICAL,
+                true,
+                true,
+                false);
 
-        // Customize the plot
         XYPlot plot = chart.getXYPlot();
         plot.setBackgroundPaint(Color.WHITE);
         plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
         plot.setDomainGridlinePaint(Color.LIGHT_GRAY);
 
-        // Add predicted dataset
         plot.setDataset(1, predictedDataset);
 
         XYLineAndShapeRenderer actualRenderer = new XYLineAndShapeRenderer();
         XYLineAndShapeRenderer predictedRenderer = new XYLineAndShapeRenderer();
 
-        // Actual data - solid lines
         actualRenderer.setSeriesPaint(0, new Color(0, 120, 215));
         actualRenderer.setSeriesStroke(0, new BasicStroke(3.0f));
 
@@ -292,24 +266,22 @@ public class ComplexityAnalysis {
         actualRenderer.setSeriesPaint(2, new Color(0, 180, 80));
         actualRenderer.setSeriesStroke(2, new BasicStroke(3.0f));
 
-        // Predicted data - dashed lines
-        float[] dashPattern = {10.0f, 5.0f};
+        float[] dashPattern = { 10.0f, 5.0f };
         predictedRenderer.setSeriesPaint(0, new Color(0, 120, 215));
         predictedRenderer.setSeriesStroke(0, new BasicStroke(2.5f, BasicStroke.CAP_BUTT,
-            BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
+                BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
 
         predictedRenderer.setSeriesPaint(1, new Color(255, 140, 0));
         predictedRenderer.setSeriesStroke(1, new BasicStroke(2.5f, BasicStroke.CAP_BUTT,
-            BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
+                BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
 
         predictedRenderer.setSeriesPaint(2, new Color(0, 180, 80));
         predictedRenderer.setSeriesStroke(2, new BasicStroke(2.5f, BasicStroke.CAP_BUTT,
-            BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
+                BasicStroke.JOIN_MITER, 10.0f, dashPattern, 0.0f));
 
         plot.setRenderer(0, actualRenderer);
         plot.setRenderer(1, predictedRenderer);
 
-        // Create frame
         JFrame frame = new JFrame("Complexity Analysis: Measured vs Predicted");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -335,9 +307,6 @@ public class ComplexityAnalysis {
         System.out.println("Predictions based on theoretical complexity: O(V log V) and O(V²)");
     }
 
-    /**
-     * Data structure to hold complexity analysis results
-     */
     static class ComplexityResult {
         int nodeCount;
         int edgeCount;
