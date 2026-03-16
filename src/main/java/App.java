@@ -9,6 +9,11 @@ import javafx.stage.Stage;
  */
 public class App extends Application {
 
+    @FunctionalInterface
+    interface LoadCallback {
+        void onLoaded(Ghana ghana, String fileName, String filePath);
+    }
+
     private Stage primaryStage;
 
     @Override
@@ -28,8 +33,9 @@ public class App extends Application {
         primaryStage.setScene(scene);
     }
 
-    private void onDataLoaded(Ghana ghana, String fileName) {
-        MainScreen mainScreen = new MainScreen(ghana, fileName, this::showLoadScreen);
+    private void onDataLoaded(Ghana ghana, String fileName, String filePath) {
+        MainScreen mainScreen = new MainScreen(ghana, fileName, filePath,
+                this::showLoadScreen);
         Scene scene = new Scene(mainScreen.getRoot(), 1200, 800);
         primaryStage.setWidth(1200);
         primaryStage.setHeight(800);
