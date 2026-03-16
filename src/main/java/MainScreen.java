@@ -62,6 +62,12 @@ public class MainScreen {
     private Label topStatsLabel;
     private Label sideStatsLabel;
 
+    // Path highlighting
+    private List<PathWithCost> highlightedPaths = new ArrayList<>();
+    private static final String[] PATH_COLORS = {"#00ff88", "#ffaa00", "#ff3366"};
+    private VBox recommendCard;
+    private VBox costsCard;
+
     MainScreen(Ghana ghana, String fileName, Runnable onReload) {
         this.ghana = ghana;
         this.fileName = fileName;
@@ -160,11 +166,13 @@ public class MainScreen {
         sideStatsLabel = (Label) statsCard.getChildren().get(1); // the body label
         sidebar.getChildren().add(statsCard);
 
-        sidebar.getChildren().add(sidebarCard("Recommend",
-                "Select two towns to\ncompare routes.\n\n(Coming soon)"));
+        recommendCard = sidebarCard("Recommendation",
+                "Click 'Path' to find\nthe best routes between\ntwo towns.");
+        sidebar.getChildren().add(recommendCard);
 
-        sidebar.getChildren().add(sidebarCard("Costs",
-                "Route cost breakdown\nwill appear here.\n\n(Coming soon)"));
+        costsCard = sidebarCard("Route Costs",
+                "Cost breakdown will\nappear here after\npath calculation.");
+        sidebar.getChildren().add(costsCard);
 
         return sidebar;
     }
@@ -217,6 +225,7 @@ public class MainScreen {
         edgeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 12;");
 
         deleteBtn.setOnAction(e -> handleDeleteAction());
+        pathBtn.setOnAction(e -> handlePathAction());
 
         bar.getChildren().addAll(deleteBtn, editBtn, addBtn, pathBtn,
                 spacer, modeLabel, edgeLabel);
@@ -286,6 +295,233 @@ public class MainScreen {
         }
         if (sideStatsLabel != null) {
             sideStatsLabel.setText("Towns: " + ghana.getTownCount() + "\nEdges: " + ghana.getEdgeCount());
+        }
+    }
+
+    private void handlePathAction() {
+        // Create dialog to get start and end towns
+        javafx.scene.control.Dialog<javafx.util.Pair<String, String>> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Find Best Routes");
+        dialog.setHeaderText("Enter the start and destination towns to find the top 3 lowest cost paths.");
+
+        // Set button types
+        javafx.scene.control.ButtonType calculateButtonType = new javafx.scene.control.ButtonType("Calculate", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(calculateButtonType, javafx.scene.control.ButtonType.CANCEL);
+
+        // Create input fields
+        javafx.scene.control.TextField startField = new javafx.scene.control.TextField();
+        startField.setPromptText("Start town (e.g., Accra)");
+        javafx.scene.control.TextField endField = new javafx.scene.control.TextField();
+        endField.setPromptText("End town (e.g., Kumasi)");
+
+        VBox content = new VBox(10);
+        content.getChildren().addAll(
+                new Label("Start Town:"), startField,
+                new Label("End Town:"), endField
+        );
+        content.setPadding(new Insets(20));
+        dialog.getDialogPane().setContent(content);
+
+        // Convert result when calculate button is clicked
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == calculateButtonType) {
+                return new javafx.util.Pair<>(startField.getText().trim(), endField.getText().trim());
+            }
+            return null;
+        });
+
+        // Show dialog and process result
+        dialog.showAndWait().ifPresent(pair -> {
+            String startTown = pair.getKey();
+            String endTown = pair.getValue();
+
+            // Validate inputs
+            if (startTown.isEmpty() || endTown.isEmpty()) {
+                showAlert("Invalid Input", "Please enter both start and end towns.", javafx.scene.control.Alert.AlertType.WARNING);
+                return;
+            }
+
+            // Check if towns exist
+            Town start = ghana.getTown(startTown);
+            Town end = ghana.getTown(endTown);
+
+            if (start == null) {
+                showAlert("Town Not Found", "Start town '" + startTown + "' does not exist in the network.", javafx.scene.control.Alert.AlertType.ERROR);
+                return;
+            }
+
+            if (end == null) {
+                showAlert("Town Not Found", "End town '" + endTown + "' does not exist in the network.", javafx.scene.control.Alert.AlertType.ERROR);
+                return;
+            }
+
+            // Calculate top 3 paths by total cost
+            List<PathWithCost> paths = ghana.getTop3PathsByTotalCost(startTown, endTown);
+
+            if (paths.isEmpty()) {
+                showAlert("No Path Found", "No path exists between '" + start.getName() + "' and '" + end.getName() + "'.", javafx.scene.control.Alert.AlertType.INFORMATION);
+                return;
+            }
+
+            // Store and highlight the paths
+            highlightedPaths = paths;
+            highlightPaths();
+            updateSidebarWithPaths();
+        });
+    }
+
+    private void showAlert(String title, String content, javafx.scene.control.Alert.AlertType type) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    private void highlightPaths() {
+        // Reset all edges to default color first
+        edgeLines.forEach(l -> {
+            l.setStroke(Color.web("#5c6a8a", 0.45));
+            l.setStrokeWidth(3.0);
+        });
+        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
+
+        // Clear node selection
+        if (selectedNode != null) {
+            selectedNode.setStroke(Color.web("#ffffff"));
+            selectedNode.setStrokeWidth(1.5);
+            selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
+        }
+        if (selectedEdge != null) {
+            selectedEdge = null;
+        }
+
+        // Highlight each path with its color
+        HashMap<String, Town> towns = ghana.getTowns();
+        List<String> keys = new ArrayList<>(towns.keySet());
+        keys.sort(String::compareTo);
+
+        for (int pathIdx = 0; pathIdx < highlightedPaths.size(); pathIdx++) {
+            PathWithCost pathWithCost = highlightedPaths.get(pathIdx);
+            List<String> path = pathWithCost.getPath();
+            String color = PATH_COLORS[pathIdx % PATH_COLORS.length];
+
+            // Highlight each edge in the path
+            for (int i = 0; i < path.size() - 1; i++) {
+                String fromTown = path.get(i);
+                String toTown = path.get(i + 1);
+                String fromKey = fromTown.toLowerCase().trim();
+                String toKey = toTown.toLowerCase().trim();
+
+                // Find the edge line corresponding to this connection
+                int edgeIdx = 0;
+                for (String srcKey : keys) {
+                    Town srcTown = towns.get(srcKey);
+                    if (srcTown.getNeighbors() == null) continue;
+
+                    for (String dstKey : srcTown.getNeighbors().keySet()) {
+                        if (srcKey.equals(fromKey) && dstKey.equals(toKey)) {
+                            if (edgeIdx < edgeLines.size()) {
+                                Line line = edgeLines.get(edgeIdx);
+                                line.setStroke(Color.web(color, 0.9));
+                                line.setStrokeWidth(4.5);
+                                line.toFront();
+
+                                Polygon arrow = arrowHeads.get(edgeIdx);
+                                arrow.setFill(Color.web(color, 0.95));
+                                arrow.toFront();
+                            }
+                        }
+                        edgeIdx++;
+                    }
+                }
+            }
+
+            // Highlight nodes in the path
+            for (String townName : path) {
+                String key = townName.toLowerCase().trim();
+                Circle circle = nodeCircles.get(key);
+                if (circle != null) {
+                    circle.toFront();
+                }
+                Text label = nodeLabels.get(key);
+                if (label != null) {
+                    label.toFront();
+                }
+            }
+        }
+    }
+
+    private void updateSidebarWithPaths() {
+        if (highlightedPaths.isEmpty()) {
+            return;
+        }
+
+        // Update recommendation card
+        PathWithCost bestPath = highlightedPaths.get(0);
+
+        // Recreate the recommendation card with better formatting
+        recommendCard.getChildren().clear();
+
+        Label recTitle = new Label("Recommended Route");
+        recTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+        recTitle.setStyle("-fx-text-fill: " + ACCENT + ";");
+
+        VBox pathBox = new VBox(4);
+        Label pathLabel = new Label("Best route (lowest cost):");
+        pathLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
+
+        Label pathText = new Label(bestPath.getPathString());
+        pathText.setWrapText(true);
+        pathText.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 10; -fx-font-weight: bold;");
+
+        Label costLabel = new Label(String.format("Total: %.2f GHS", bestPath.getTotalCost()));
+        costLabel.setStyle("-fx-text-fill: " + PATH_COLORS[0] + "; -fx-font-size: 12; -fx-font-weight: bold;");
+
+        Label detailLabel = new Label(String.format("%d km, %d min", bestPath.getDistance(), bestPath.getTime()));
+        detailLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+        pathBox.getChildren().addAll(pathLabel, pathText, costLabel, detailLabel);
+        recommendCard.getChildren().addAll(recTitle, pathBox);
+
+        // Update costs card with colored legend
+        costsCard.getChildren().clear();
+
+        Label costTitle = new Label("Route Comparison");
+        costTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+        costTitle.setStyle("-fx-text-fill: " + ACCENT + ";");
+        costsCard.getChildren().add(costTitle);
+
+        for (int i = 0; i < highlightedPaths.size(); i++) {
+            PathWithCost p = highlightedPaths.get(i);
+            String color = PATH_COLORS[i % PATH_COLORS.length];
+
+            VBox pathItem = new VBox(2);
+            pathItem.setPadding(new Insets(6, 0, 6, 0));
+
+            // Color indicator and path number
+            HBox header = new HBox(6);
+            Label colorBox = new Label("█");
+            colorBox.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 16;");
+            Label pathNum = new Label("Path " + (i + 1));
+            pathNum.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 11; -fx-font-weight: bold;");
+            header.getChildren().addAll(colorBox, pathNum);
+
+            Label fuelLabel = new Label(String.format("Fuel: %.2f GHS", p.getFuelCost()));
+            fuelLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+            Label timeLabel = new Label(String.format("Time: %.2f GHS", p.getTimeCost()));
+            timeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+            Label totalLabel = new Label(String.format("Total: %.2f GHS", p.getTotalCost()));
+            totalLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 10; -fx-font-weight: bold;");
+
+            Label distTimeLabel = new Label(String.format("(%d km, %d min)", p.getDistance(), p.getTime()));
+            distTimeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 8;");
+
+            pathItem.getChildren().addAll(header, fuelLabel, timeLabel, totalLabel, distTimeLabel);
+            costsCard.getChildren().add(pathItem);
         }
     }
 
