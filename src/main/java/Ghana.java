@@ -296,6 +296,135 @@ public class Ghana {
     }
 
     /**
+     * Renames a town, updating the master map key and every neighbor reference
+     * across the entire graph.
+     *
+     * @param oldName current town name (case-insensitive)
+     * @param newName desired new name (display casing preserved)
+     * @throws IllegalArgumentException if old town doesn't exist or new key
+     *                                  already taken by a different town
+     */
+    public void renameTown(String oldName, String newName) {
+        String oldKey = normalizeKey(oldName);
+        String newKey = normalizeKey(newName);
+
+        Town town = towns.get(oldKey);
+        if (town == null) {
+            throw new IllegalArgumentException("Town not found: " + oldName);
+        }
+
+        if (!oldKey.equals(newKey) && towns.containsKey(newKey)) {
+            throw new IllegalArgumentException(
+                    "A town named \"" + newName + "\" already exists");
+        }
+
+        town.setName(newName);
+
+        if (!oldKey.equals(newKey)) {
+            towns.remove(oldKey);
+            towns.put(newKey, town);
+
+            HashMap<String, int[]> ownNeighbors = town.getNeighbors();
+            if (ownNeighbors.containsKey(oldKey)) {
+                int[] self = ownNeighbors.remove(oldKey);
+                ownNeighbors.put(newKey, self);
+            }
+
+            for (Town other : towns.values()) {
+                if (other == town) continue;
+                HashMap<String, int[]> nb = other.getNeighbors();
+                if (nb.containsKey(oldKey)) {
+                    int[] edge = nb.remove(oldKey);
+                    nb.put(newKey, edge);
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds a new isolated town (no edges) to the network.
+     *
+     * @param name the display name for the new town
+     * @throws IllegalArgumentException if a town with that name already exists
+     */
+    public void addTown(String name) {
+        String key = normalizeKey(name);
+        if (towns.containsKey(key)) {
+            throw new IllegalArgumentException(
+                    "Town \"" + name + "\" already exists");
+        }
+        towns.put(key, new Town(name));
+    }
+
+    /**
+     * Updates (or creates) a directed edge between two towns.
+     *
+     * @param fromTown    source town name (case-insensitive)
+     * @param toTown      destination town name (case-insensitive)
+     * @param newDistance  new distance in km (must be non-negative)
+     * @param newTime     new time in minutes (must be non-negative)
+     */
+    public void updateEdge(String fromTown, String toTown,
+                           int newDistance, int newTime) {
+        String fromKey = normalizeKey(fromTown);
+        String toKey = normalizeKey(toTown);
+
+        Town src = towns.get(fromKey);
+        if (src == null) {
+            throw new IllegalArgumentException("Source town not found: " + fromTown);
+        }
+        if (!towns.containsKey(toKey)) {
+            throw new IllegalArgumentException("Destination town not found: " + toTown);
+        }
+
+        if (!src.hasNeighbor(toKey)) {
+            edgeCount++;
+        }
+        src.addNeighbor(toKey, newDistance, newTime);
+    }
+
+    /**
+     * Serializes the full graph back to a file, matching the format implied by
+     * its extension ({@code .csv} with header, {@code .txt} without).
+     *
+     * @param path the output file path
+     * @throws IOException if writing fails
+     */
+    public void saveToFile(String path) throws IOException {
+        boolean csv = path.endsWith(".csv");
+        try (FileWriter fw = new FileWriter(path);
+             BufferedWriter writer = new BufferedWriter(fw)) {
+
+            if (csv) {
+                writer.write("source,destination,distance_km,avg_time_min");
+                writer.newLine();
+            }
+
+            List<String> sortedKeys = new ArrayList<>(towns.keySet());
+            sortedKeys.sort(String::compareTo);
+
+            for (String srcKey : sortedKeys) {
+                Town srcTown = towns.get(srcKey);
+                HashMap<String, int[]> neighbors = srcTown.getNeighbors();
+                if (neighbors == null) continue;
+
+                List<String> nKeys = new ArrayList<>(neighbors.keySet());
+                nKeys.sort(String::compareTo);
+
+                for (String dstKey : nKeys) {
+                    int[] edge = neighbors.get(dstKey);
+                    Town dstTown = towns.get(dstKey);
+                    String dstName = dstTown != null ? dstTown.getName() : dstKey;
+                    writer.write(srcTown.getName() + ","
+                            + dstName + ","
+                            + edge[0] + "," + edge[1]);
+                    writer.newLine();
+                }
+            }
+        }
+    }
+
+    /**
      * Helper to rewrite the graph file, excluding lines matching the condition.
      */
     private void deleteLinesFromFile(String filePath, java.util.function.Predicate<String[]> shouldDelete)
