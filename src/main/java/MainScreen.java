@@ -51,14 +51,20 @@ public class MainScreen {
     private final Group graphGroup;
     private final Map<String, Circle> nodeCircles = new HashMap<>();
     private final Map<String, double[]> nodePositions = new HashMap<>();
-    private final List<Line> edgeLines = new ArrayList<>();
     private final List<Polygon> arrowHeads = new ArrayList<>();
+    private final List<Line> edgeLines = new ArrayList<>();
     private Circle selectedNode = null;
+    private Line selectedEdge = null;
     private double zoomFactor = 1.0;
     private boolean laid = false;
 
+    private final String fileName;
+    private Label topStatsLabel;
+    private Label sideStatsLabel;
+
     MainScreen(Ghana ghana, String fileName, Runnable onReload) {
         this.ghana = ghana;
+        this.fileName = fileName;
 
         root = new BorderPane();
         root.setStyle("-fx-background-color: " + BG + ";");
@@ -122,9 +128,9 @@ public class MainScreen {
         Label fileLabel = new Label(fileName);
         fileLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
 
-        Label statsLabel = new Label(ghana.getTownCount() + " towns  |  "
+        topStatsLabel = new Label(ghana.getTownCount() + " towns  |  "
                 + ghana.getEdgeCount() + " edges");
-        statsLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
+        topStatsLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -134,7 +140,7 @@ public class MainScreen {
         reloadBtn.setOnAction(e -> onReload.run());
 
         bar.getChildren().addAll(selectBtn, freeformBtn,
-                new Separator(), fileLabel, statsLabel, spacer, reloadBtn);
+                new Separator(), fileLabel, topStatsLabel, spacer, reloadBtn);
         return bar;
     }
 
@@ -148,9 +154,11 @@ public class MainScreen {
         sidebar.setPadding(new Insets(16));
         sidebar.setStyle("-fx-background-color: " + SURFACE + ";");
 
-        sidebar.getChildren().add(sidebarCard("Network Stats",
+        VBox statsCard = sidebarCard("Network Stats",
                 "Towns: " + ghana.getTownCount()
-                        + "\nEdges: " + ghana.getEdgeCount()));
+                        + "\nEdges: " + ghana.getEdgeCount());
+        sideStatsLabel = (Label) statsCard.getChildren().get(1); // the body label
+        sidebar.getChildren().add(statsCard);
 
         sidebar.getChildren().add(sidebarCard("Recommend",
                 "Select two towns to\ncompare routes.\n\n(Coming soon)"));
@@ -208,9 +216,77 @@ public class MainScreen {
         Label edgeLabel = new Label("Edge");
         edgeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 12;");
 
+        deleteBtn.setOnAction(e -> handleDeleteAction());
+
         bar.getChildren().addAll(deleteBtn, editBtn, addBtn, pathBtn,
                 spacer, modeLabel, edgeLabel);
         return bar;
+    }
+
+    private void handleDeleteAction() {
+        if (selectedNode == null && selectedEdge == null) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+            alert.setTitle("Information");
+            alert.setHeaderText("Nothing Selected");
+            alert.setContentText("Please select a town or road to delete.");
+            alert.setGraphic(null);
+            alert.getDialogPane().getStylesheets().add(getClass().getResource("/style.css") != null ? getClass().getResource("/style.css").toExternalForm() : "");
+            alert.showAndWait();
+            return;
+        }
+
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirm Deletion");
+
+        try {
+            if (selectedNode != null) {
+                Object[] data = (Object[]) selectedNode.getUserData();
+                String key = (String) data[1];
+                Town town = ghana.getTown(key);
+                alert.setHeaderText("Delete Town");
+                alert.setContentText("Are you sure you want to completely delete '" + town.getName() + "' and its roads?");
+                
+                if (alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == javafx.scene.control.ButtonType.OK) {
+                    ghana.deleteTownFromFile(fileName, key);
+                    ghana.removeTown(key);
+                    selectedNode = null;
+                    updateStatsLabels();
+                    layoutGraph(graphPane.getWidth(), graphPane.getHeight());
+                }
+            } else if (selectedEdge != null) {
+                String[] keys = (String[]) selectedEdge.getUserData();
+                String srcKey = keys[0];
+                String dstKey = keys[1];
+                Town srcTown = ghana.getTown(srcKey);
+                Town dstTown = ghana.getTown(dstKey);
+                
+                alert.setHeaderText("Delete Road");
+                alert.setContentText("Are you sure you want to delete the road from '" + srcTown.getName() + "' to '" + dstTown.getName() + "'?");
+                
+                if (alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == javafx.scene.control.ButtonType.OK) {
+                    ghana.deleteEdgeFromFile(fileName, srcKey, dstKey);
+                    ghana.removeEdge(srcKey, dstKey);
+                    selectedEdge = null;
+                    updateStatsLabels();
+                    layoutGraph(graphPane.getWidth(), graphPane.getHeight());
+                }
+            }
+        } catch (java.io.IOException ex) {
+            javafx.scene.control.Alert error = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+            error.setTitle("File Error");
+            error.setHeaderText("Failed to rewrite the data file");
+            error.setContentText(ex.getMessage());
+            error.showAndWait();
+        }
+    }
+
+    private void updateStatsLabels() {
+        if (topStatsLabel != null) {
+            topStatsLabel.setText(ghana.getTownCount() + " towns  |  " + ghana.getEdgeCount() + " edges");
+        }
+        if (sideStatsLabel != null) {
+            sideStatsLabel.setText("Towns: " + ghana.getTownCount() + "\nEdges: " + ghana.getEdgeCount());
+        }
     }
 
     // ------------------------------------------------------------------
@@ -406,10 +482,17 @@ public class MainScreen {
                 double[] dstPos = nodePositions.get(dstKey);
                 if (dstPos == null) continue;
 
+                final String fSrcKey = srcKey;
+                final String fDstKey = dstKey;
                 Line line = new Line(srcPos[0], srcPos[1], dstPos[0], dstPos[1]);
                 line.setStroke(Color.web("#5c6a8a", 0.45));
-                line.setStrokeWidth(0.8);
-                line.setMouseTransparent(true);
+                line.setStrokeWidth(3.0);
+                
+                line.setOnMousePressed(e -> {
+                    selectEdge(line, fSrcKey, fDstKey);
+                    e.consume();
+                });
+                
                 edgeLines.add(line);
 
                 Polygon arrow = createArrowHead(srcPos[0], srcPos[1],
@@ -489,11 +572,17 @@ public class MainScreen {
             selectedNode.setStroke(Color.web("#ffffff"));
             selectedNode.setStrokeWidth(1.5);
             selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
+        }
+        if (selectedEdge != null) {
+            selectedEdge.setStroke(Color.web("#5c6a8a", 0.45));
+            selectedEdge.setStrokeWidth(3.0);
+            selectedEdge = null;
         }
 
         edgeLines.forEach(l -> {
             l.setStroke(Color.web("#5c6a8a", 0.45));
-            l.setStrokeWidth(0.8);
+            l.setStrokeWidth(3.0);
         });
         arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
 
@@ -539,6 +628,33 @@ public class MainScreen {
             }
         }
         circle.toFront();
+        circle.setUserData(new Object[]{circle.getUserData(), key}); // store key for deletion
+    }
+
+    private void selectEdge(Line line, String srcKey, String dstKey) {
+        if (selectedNode != null) {
+            selectedNode.setStroke(Color.web("#ffffff"));
+            selectedNode.setStrokeWidth(1.5);
+            selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
+        }
+        if (selectedEdge != null) {
+            selectedEdge.setStroke(Color.web("#5c6a8a", 0.45));
+            selectedEdge.setStrokeWidth(3.0);
+        }
+
+        edgeLines.forEach(l -> {
+            l.setStroke(Color.web("#5c6a8a", 0.45));
+            l.setStrokeWidth(3.0);
+        });
+        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
+
+        selectedEdge = line;
+        line.setStroke(Color.web(ACCENT));
+        line.setStrokeWidth(4.0);
+        line.toFront();
+        
+        line.setUserData(new String[]{srcKey, dstKey}); // store keys for deletion
     }
 
     // ------------------------------------------------------------------

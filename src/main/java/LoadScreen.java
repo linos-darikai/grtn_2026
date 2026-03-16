@@ -67,7 +67,7 @@ public class LoadScreen {
             Ghana ghana = new Ghana();
             try {
                 ghana.loadTowns(file.getPath());
-                onLoaded.accept(ghana, file.getName());
+                onLoaded.accept(ghana, file.getAbsolutePath());
             } catch (Exception ex) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
                 alert.setTitle("Load Error");

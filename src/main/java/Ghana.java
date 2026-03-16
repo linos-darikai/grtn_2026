@@ -243,6 +243,130 @@ public class Ghana {
     }
 
     /**
+     * Completely removes a town from the network, including all outgoing edges
+     * from it and all incoming edges to it.
+     *
+     * @param townName the name of the town to remove (case-insensitive)
+     * @return true if the town was removed, false if it didn't exist
+     */
+    public boolean removeTown(String townName) {
+        String key = normalizeKey(townName);
+        if (!towns.containsKey(key)) {
+            return false;
+        }
+
+        // 1. Remove the town itself and its outgoing edges
+        Town removed = towns.remove(key);
+        if (removed != null && removed.getNeighbors() != null) {
+            edgeCount -= removed.getNeighbors().size();
+        }
+
+        // 2. Remove all incoming edges pointing to this town
+        for (Town town : towns.values()) {
+            if (town.getNeighbors() != null && town.getNeighbors().containsKey(key)) {
+                town.getNeighbors().remove(key);
+                edgeCount--;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes a directed edge between two towns.
+     *
+     * @param fromTown the origin town
+     * @param toTown   the destination town
+     * @return true if the edge was removed, false if it didn't exist
+     */
+    public boolean removeEdge(String fromTown, String toTown) {
+        String fromKey = normalizeKey(fromTown);
+        String toKey = normalizeKey(toTown);
+
+        Town from = towns.get(fromKey);
+        if (from != null && from.getNeighbors() != null && from.getNeighbors().containsKey(toKey)) {
+            from.getNeighbors().remove(toKey);
+            edgeCount--;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Helper to rewrite the graph file, excluding lines matching the condition.
+     */
+    private void deleteLinesFromFile(String filePath, java.util.function.Predicate<String[]> shouldDelete) throws IOException {
+        java.io.File file = new java.io.File(filePath);
+        if (!file.exists()) return;
+
+        boolean isCsv = filePath.endsWith(".csv");
+        String separator = isCsv ? "," : ",\\s*";
+
+        List<String> linesToKeep = new ArrayList<>();
+
+        try (FileReader fr = new FileReader(file);
+             BufferedReader br = new BufferedReader(fr)) {
+             
+            String line = br.readLine();
+            if (line == null) return;
+            
+            // keep header for csv
+            if (isCsv) {
+                linesToKeep.add(line);
+                line = br.readLine();
+            }
+
+            while (line != null) {
+                if (line.isBlank()) {
+                    linesToKeep.add(line);
+                    line = br.readLine();
+                    continue;
+                }
+                
+                String[] parts = line.split(separator);
+                if (parts.length >= 2 && !shouldDelete.test(parts)) {
+                    linesToKeep.add(line);
+                }
+                line = br.readLine();
+            }
+        }
+
+        try (java.io.FileWriter fw = new java.io.FileWriter(file);
+             java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+            for (String l : linesToKeep) {
+                bw.write(l);
+                bw.newLine();
+            }
+        }
+    }
+
+    /**
+     * Deletes all edges associated with a town from the given file.
+     */
+    public void deleteTownFromFile(String filePath, String townName) throws IOException {
+        String key = normalizeKey(townName);
+        deleteLinesFromFile(filePath, parts -> {
+            String srcKey = normalizeKey(parts[0]);
+            String dstKey = normalizeKey(parts[1]);
+            return srcKey.equals(key) || dstKey.equals(key);
+        });
+    }
+
+    /**
+     * Deletes a specific directed edge from the given file.
+     */
+    public void deleteEdgeFromFile(String filePath, String fromTown, String toTown) throws IOException {
+        String fKey = normalizeKey(fromTown);
+        String tKey = normalizeKey(toTown);
+        deleteLinesFromFile(filePath, parts -> {
+            String srcKey = normalizeKey(parts[0]);
+            String dstKey = normalizeKey(parts[1]);
+            return srcKey.equals(fKey) && dstKey.equals(tKey);
+        });
+    }
+
+    /**
      * Returns the full map of all towns in the network.
      *
      * @return a {@link HashMap} mapping normalized town names to {@link Town}
