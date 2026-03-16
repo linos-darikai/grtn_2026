@@ -9,12 +9,15 @@ import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -308,16 +311,32 @@ public class MainScreen {
         javafx.scene.control.ButtonType calculateButtonType = new javafx.scene.control.ButtonType("Calculate", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(calculateButtonType, javafx.scene.control.ButtonType.CANCEL);
 
-        // Create input fields
-        javafx.scene.control.TextField startField = new javafx.scene.control.TextField();
-        startField.setPromptText("Start town (e.g., Accra)");
-        javafx.scene.control.TextField endField = new javafx.scene.control.TextField();
-        endField.setPromptText("End town (e.g., Kumasi)");
+        // Get all town names and sort them
+        List<String> townNames = new ArrayList<>();
+        for (Town town : ghana.getTowns().values()) {
+            townNames.add(town.getName());
+        }
+        townNames.sort(String::compareTo);
+
+        // Create ComboBox fields with autocomplete
+        javafx.scene.control.ComboBox<String> startCombo = new javafx.scene.control.ComboBox<>();
+        startCombo.getItems().addAll(townNames);
+        startCombo.setEditable(true);
+        startCombo.setPromptText("Start town (e.g., Accra)");
+        startCombo.setMaxWidth(Double.MAX_VALUE);
+        setupComboBoxAutocomplete(startCombo);
+
+        javafx.scene.control.ComboBox<String> endCombo = new javafx.scene.control.ComboBox<>();
+        endCombo.getItems().addAll(townNames);
+        endCombo.setEditable(true);
+        endCombo.setPromptText("End town (e.g., Kumasi)");
+        endCombo.setMaxWidth(Double.MAX_VALUE);
+        setupComboBoxAutocomplete(endCombo);
 
         VBox content = new VBox(10);
         content.getChildren().addAll(
-                new Label("Start Town:"), startField,
-                new Label("End Town:"), endField
+                new Label("Start Town:"), startCombo,
+                new Label("End Town:"), endCombo
         );
         content.setPadding(new Insets(20));
         dialog.getDialogPane().setContent(content);
@@ -325,7 +344,11 @@ public class MainScreen {
         // Convert result when calculate button is clicked
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == calculateButtonType) {
-                return new javafx.util.Pair<>(startField.getText().trim(), endField.getText().trim());
+                String start = startCombo.getValue() != null ? startCombo.getValue().trim() :
+                              (startCombo.getEditor().getText() != null ? startCombo.getEditor().getText().trim() : "");
+                String end = endCombo.getValue() != null ? endCombo.getValue().trim() :
+                            (endCombo.getEditor().getText() != null ? endCombo.getEditor().getText().trim() : "");
+                return new javafx.util.Pair<>(start, end);
             }
             return null;
         });
@@ -376,6 +399,42 @@ public class MainScreen {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    /**
+     * Sets up autocomplete/filtering for a ComboBox.
+     * As the user types, the dropdown filters to show matching towns.
+     */
+    private void setupComboBoxAutocomplete(ComboBox<String> comboBox) {
+        ObservableList<String> allItems = FXCollections.observableArrayList(comboBox.getItems());
+
+        comboBox.getEditor().textProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue == null || newValue.isEmpty()) {
+                comboBox.setItems(allItems);
+                comboBox.hide();
+            } else {
+                ObservableList<String> filtered = FXCollections.observableArrayList();
+                String search = newValue.toLowerCase();
+
+                for (String item : allItems) {
+                    if (item.toLowerCase().contains(search)) {
+                        filtered.add(item);
+                    }
+                }
+
+                comboBox.setItems(filtered);
+                if (!filtered.isEmpty() && !comboBox.isShowing()) {
+                    comboBox.show();
+                }
+            }
+        });
+
+        // When user selects from dropdown, update the editor text
+        comboBox.setOnAction(e -> {
+            if (comboBox.getValue() != null) {
+                comboBox.getEditor().setText(comboBox.getValue());
+            }
+        });
     }
 
     private void highlightPaths() {
