@@ -4,24 +4,6 @@ import java.util.HashMap;
  * Represents a town (vertex) in the Ghana Road Transport Network directed
  * graph.
  *
- * <p>
- * Each {@code Town} holds a name and a map of outgoing edges to neighboring
- * towns.
- * Every edge carries two weights: the road distance in kilometres and the
- * average
- * travel time in minutes. This mirrors the structure of the dataset in
- * {@code ghana_directed_graph_2026.csv} where each row defines a directed edge
- * {@code (source, destination, distance_km, avg_time_min)}.
- * </p>
- *
- * <p>
- * The neighbors map uses the neighbor town's name as the key and a two-element
- * {@code int[]} as the value:
- * </p>
- * <ul>
- * <li>Index 0 — distance in kilometres</li>
- * <li>Index 1 — average travel time in minutes</li>
- * </ul>
  *
  * <p>
  * <strong>Example usage:</strong>
@@ -136,8 +118,7 @@ public class Town {
      * Checks whether a directed edge exists from this town to the given neighbor.
      *
      * @param neighborName the name of the town to check
-     * @return {@code true} if an edge to the neighbor exists, {@code false}
-     *         otherwise
+     * @return {@code true} if an edge to the neighbor exists, {@code false} otherwise
      */
     public boolean hasNeighbor(String neighborName) {
         return this.neighbors.containsKey(neighborName);

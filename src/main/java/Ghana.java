@@ -21,8 +21,7 @@ public class Ghana {
      * Master map of all towns in the network.
      * <p>
      * Key: <strong>lowercase</strong> town name (e.g. {@code "cape coast"}).<br>
-     * Value: the corresponding {@link Town} instance, which stores the
-     * original display name.
+     * Value: the corresponding {@link Town} instance
      * </p>
      */
     private HashMap<String, Town> towns;
@@ -43,11 +42,7 @@ public class Ghana {
     /**
      * Normalizes a town name into a consistent lowercase key for map storage
      * and lookup.
-     *
-     * <p>
-     * This ensures that {@code "Accra"}, {@code "accra"}, and
-     * {@code " ACCRA "} all map to the same key {@code "accra"}.
-     * </p>
+     * 
      *
      * @param name the raw town name
      * @return the trimmed, lowercased key
@@ -63,15 +58,7 @@ public class Ghana {
     /**
      * Loads town and edge data from the specified file into the network.
      *
-     * <p>
-     * The method inspects the file extension to choose the correct parser:
-     * </p>
-     * <ul>
-     * <li>{@code .csv} — expects a header row followed by comma-separated
-     * data rows ({@code source,destination,distance_km,avg_time_min})</li>
-     * <li>{@code .txt} — expects comma-and-space-separated data rows with
-     * no header ({@code source, destination, distance_km, avg_time_min})</li>
-     * </ul>
+     * 
      *
      * <p>
      * All I/O resources are managed with try-with-resources to prevent
@@ -104,14 +91,14 @@ public class Ghana {
      * </p>
      *
      * @param filePath path to the CSV file
-     * @throws IOException if the file cannot be read
+     * @throws IOException 
      */
     private void loadFromCsv(String filePath) throws IOException {
         try (FileReader fileReader = new FileReader(filePath);
                 BufferedReader reader = new BufferedReader(fileReader)) {
             reader.readLine(); // skip header
             String line;
-            int lineNumber = 1; // header was line 1
+            int lineNumber = 1; 
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
                 if (line.isBlank())
@@ -153,12 +140,6 @@ public class Ghana {
      * Validates and processes a single parsed directed edge, registering it in
      * the graph.
      *
-     * <p>
-     * Each valid line produces exactly one directed edge
-     * from source to destination. No reverse edge is created,the graph
-     * treats {@code A → B} and {@code B → A} as independent edges that must
-     * each appear as their own row in the dataset.
-     * </p>
      *
      * <p>
      * Validation checks performed before insertion:
@@ -248,7 +229,7 @@ public class Ghana {
      * Completely removes a town from the network, including all outgoing edges
      * from it and all incoming edges to it.
      *
-     * @param townName the name of the town to remove (case-insensitive)
+     * @param townName the name of the town to remove
      * @return true if the town was removed, false if it didn't exist
      */
     public boolean removeTown(String townName) {
@@ -299,10 +280,9 @@ public class Ghana {
      * Renames a town, updating the master map key and every neighbor reference
      * across the entire graph.
      *
-     * @param oldName current town name (case-insensitive)
-     * @param newName desired new name (display casing preserved)
-     * @throws IllegalArgumentException if old town doesn't exist or new key
-     *                                  already taken by a different town
+     * @param oldName current town name 
+     * @param newName desired new name 
+     * @throws IllegalArgumentException if old town doesn't exist or new key already taken by a different town
      */
     public void renameTown(String oldName, String newName) {
         String oldKey = normalizeKey(oldName);
@@ -503,8 +483,7 @@ public class Ghana {
     /**
      * Returns the full map of all towns in the network.
      *
-     * @return a {@link HashMap} mapping normalized town names to {@link Town}
-     *         objects; never {@code null}
+     * @return a {@link HashMap} mapping normalized town names to {@link Town} objects; never {@code null}
      */
     public HashMap<String, Town> getTowns() {
         return towns;
@@ -513,10 +492,8 @@ public class Ghana {
     /**
      * Retrieves a single {@link Town} by name (case-insensitive).
      *
-     * @param name the name of the town; casing and leading/trailing whitespace
-     *             are ignored
-     * @return the {@link Town} instance, or {@code null} if no town with that
-     *         name exists in the network
+     * @param name the name of the town; casing and leading/trailing whitespace are ignored
+     * @return the {@link Town} instance, or {@code null} if no town with that name exists in the network
      */
     public Town getTown(String name) {
         return towns.get(normalizeKey(name));
@@ -580,11 +557,9 @@ public class Ghana {
      * casing) traversed from origin to destination.
      * </p>
      *
-     * @param fromTown the name of the origin town (case-insensitive)
-     * @param toTown   the name of the destination town (case-insensitive)
-     * @return a {@link PathResult} with the shortest distance and path, or
-     *         {@code null} if no path exists or either town is not in the
-     *         network
+     * @param fromTown the name of the origin town 
+     * @param toTown   the name of the destination town 
+     * @return a {@link PathResult} with the shortest distance and path, or {@code null} if no path exists or either town is not in the network
      */
     public PathResult getDistance(String fromTown, String toTown) {
         String startKey = normalizeKey(fromTown);
@@ -684,9 +659,7 @@ public class Ghana {
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
-     * @return a {@link PathResult} with the fastest time (via
-     *         {@link PathResult#getTime()}) and path, or {@code null} if
-     *         no path exists or either town is not in the network
+     * @return a {@link PathResult} with the fastest time (via @link PathResult#getTime()}) and path, or {@code null} if no path exists or either town is not in the network
      */
     public PathResult getFastestTime(String fromTown, String toTown) {
         String startKey = normalizeKey(fromTown);
@@ -773,13 +746,12 @@ public class Ghana {
         return new PathResult(finalTime, path);
     }
 
-    /** Fuel consumption rate: 8 kilometres per litre. */
     private static final int KM_PER_LITRE = 8;
 
-    /** Fuel price in GHS per litre. */
+ 
     private static final double FUEL_PRICE_PER_LITRE = 11.955;
 
-    /** Time cost in GHS per minute of travel. */
+
     private static final double TIME_COST_PER_MINUTE = 0.5;
 
     /**
@@ -796,9 +768,7 @@ public class Ghana {
      *
      * @param fromKey lowercase key of the origin town
      * @param toKey   lowercase key of the destination town
-     * @return a two-element {@code int[]} where index 0 is total distance
-     *         (km) and index 1 is total time (min), or {@code null} if no
-     *         path exists or either key is not in the network
+     * @return a two-element {@code int[]} where index 0 is total distance (km) and index 1 is total time (min), or {@code null} if no path exists or either key is not in the network
      */
     private int[] computeSegmentTotals(String fromKey, String toKey) {
         PathResult result = getDistance(fromKey, toKey);
@@ -833,11 +803,8 @@ public class Ghana {
      * each segment — it reads the actual edge weights as given.
      * </p>
      *
-     * @param path an ordered list of town names (display casing) where each
-     *             consecutive pair is connected by a direct directed edge
-     * @return a two-element {@code int[]} where index 0 is total distance
-     *         (km) and index 1 is total time (min), or {@code null} if a
-     *         town or direct edge is missing
+     * @param path an ordered list of town names (display casing) where each consecutive pair is connected by a direct directed edge
+     * @return a two-element {@code int[]} where index 0 is total distance (km) and index 1 is total time (min), or {@code null} if a town or direct edge is missing
      */
     private int[] walkPathTotals(List<String> path) {
         int totalDistance = 0;
@@ -882,12 +849,8 @@ public class Ghana {
      * {@link #getTotalCost}.
      * </p>
      *
-     * @param route an ordered list of waypoint town names from origin to
-     *              destination
-     * @return a two-element {@code int[]} where index 0 is the total
-     *         distance in km and index 1 is the total time in minutes, or
-     *         {@code null} if the route is invalid (no path between a pair
-     *         of consecutive waypoints, or a town does not exist)
+     * @param route an ordered list of waypoint town names from origin to destination
+     * @return a two-element {@code int[]} where index 0 is the total distance in km and index 1 is the total time in minutes, or {@code null} if the route is invalid 
      */
     private int[] computeRouteTotals(List<String> route) {
         int totalDistance = 0;
@@ -943,8 +906,7 @@ public class Ghana {
      * <li>Town names are matched case-insensitively.</li>
      * </ul>
      *
-     * @param route an ordered list of waypoint town names from origin to
-     *              destination
+     * @param route an ordered list of waypoint town names from origin to destination
      * @return the fuel cost in GHS, or {@code -1.0} if the route is invalid
      */
     public double getFuelCost(List<String> route) {
@@ -998,8 +960,7 @@ public class Ghana {
      * <li>Town names are matched case-insensitively.</li>
      * </ul>
      *
-     * @param route an ordered list of waypoint town names from origin to
-     *              destination
+     * @param route an ordered list of waypoint town names from origin to destination
      * @return the total cost in GHS, or {@code -1.0} if the route is invalid
      */
     public double getTotalCost(List<String> route) {
@@ -1035,10 +996,7 @@ public class Ghana {
      * </p>
      *
      * @param fromTown the origin town (case-insensitive)
-     * @param toTown   the destination town (case-insensitive)
-     * @return a {@link RouteComparison} containing the full breakdown and
-     *         recommendation, or {@code null} if no path exists between
-     *         the towns or either town is not in the network
+     * @param toTown   the destination town (case-insensitive) recommendation, or {@code null} if no path exists between the towns or either town is not in the network
      */
     public RouteComparison recommendRoute(String fromTown, String toTown) {
         PathResult shortestResult = getDistance(fromTown, toTown);
@@ -1090,8 +1048,7 @@ public class Ghana {
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
-     * @return a {@link List} of {@link PathWithCost} objects containing
-     *         path and cost details, sorted by total cost (lowest first)
+     * @return a {@link List} of {@link PathWithCost} objects containing path and cost details, sorted by total cost (lowest first)
      */
     public List<PathWithCost> getTop3PathsByTotalCost(String fromTown, String toTown) {
         String startKey = normalizeKey(fromTown);
@@ -1127,7 +1084,7 @@ public class Ghana {
         pq.add(new PathNode(startKey, 0, initKeys));
 
         List<List<String>> foundPaths = new ArrayList<>();
-        int maxPaths = 50; // Explore more paths to find best by cost
+        int maxPaths = 50; // Explore more paths to find best by cost, we just chose 50 because it's a reasonable number
 
         while (!pq.isEmpty() && foundPaths.size() < maxPaths) {
             PathNode current = pq.poll();
@@ -1220,9 +1177,7 @@ public class Ghana {
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
-     * @return a {@link List} of up to 3 paths, each path being an ordered
-     *         {@link List} of town names from origin to destination; fewer
-     *         than 3 entries are returned if fewer distinct paths exist
+     * @return a {@link List} of up to 3 paths, each path being an ordered {@link List} of town names from origin to destination; fewer than 3 entries are returned if fewer distinct paths exist
      */
     public List<List<String>> getTop3ShortestPaths(String fromTown, String toTown) {
         String startKey = normalizeKey(fromTown);

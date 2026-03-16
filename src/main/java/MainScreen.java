@@ -221,9 +221,9 @@ public class MainScreen {
         return root;
     }
 
-    // ------------------------------------------------------------------
+
     //  Top bar
-    // ------------------------------------------------------------------
+
 
     private HBox buildTopBar(String fileName, Runnable onReload) {
         HBox bar = new HBox(12);
@@ -302,9 +302,9 @@ public class MainScreen {
         return bar;
     }
 
-    // ------------------------------------------------------------------
+
     //  Right sidebar
-    // ------------------------------------------------------------------
+ 
 
     private VBox buildSidebar() {
         VBox sidebar = new VBox(16);
@@ -349,9 +349,9 @@ public class MainScreen {
         return card;
     }
 
-    // ------------------------------------------------------------------
+
     //  Bottom toolbar
-    // ------------------------------------------------------------------
+  
 
     private Button editBtnRef;
     private Button addBtnRef;
@@ -390,9 +390,7 @@ public class MainScreen {
         return bar;
     }
 
-    // ------------------------------------------------------------------
-    //  Edit / Add mode toggles (UI state only – panels defined later)
-    // ------------------------------------------------------------------
+    //  Edit / Add mode toggles 
 
     private void toggleEditMode() {
         if (addMode) toggleAddMode();
@@ -811,9 +809,8 @@ public class MainScreen {
         }
     }
 
-    // ------------------------------------------------------------------
+   
     //  Graph layout – force-directed (Fruchterman-Reingold)
-    // ------------------------------------------------------------------
 
     private final Map<String, Text> nodeLabels = new HashMap<>();
 
@@ -1003,9 +1000,7 @@ public class MainScreen {
         applyTransform();
     }
 
-    // ------------------------------------------------------------------
     //  Edge drawing
-    // ------------------------------------------------------------------
 
     private void drawEdges(HashMap<String, Town> towns, List<String> keys) {
         edgeLines.clear();
@@ -1054,7 +1049,7 @@ public class MainScreen {
         double tipX = x2 - ux * (NODE_RADIUS + 10);
         double tipY = y2 - uy * (NODE_RADIUS + 10);
 
-        // Base arrowhead size – deliberately large so direction is obvious
+       
         double sz = 28;
         double baseX = tipX - ux * sz;
         double baseY = tipY - uy * sz;
@@ -1104,9 +1099,7 @@ public class MainScreen {
         }
     }
 
-    // ------------------------------------------------------------------
     //  Node selection – highlights outgoing edges
-    // ------------------------------------------------------------------
 
     private final Set<String> highlightedNeighborKeys = new HashSet<>();
 
@@ -1147,9 +1140,9 @@ public class MainScreen {
         arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.7)));
     }
 
-    // ------------------------------------------------------------------
+
     //  Edit mode panels and handlers
-    // ------------------------------------------------------------------
+
 
     private void showEditPanel(String key) {
         Town town = ghana.getTowns().get(key);
@@ -1357,9 +1350,8 @@ public class MainScreen {
         };
     }
 
-    // ------------------------------------------------------------------
+
     //  Add mode panels and handlers
-    // ------------------------------------------------------------------
 
     private void showAddPanel() {
         VBox panel = new VBox(12);
@@ -1659,9 +1651,8 @@ public class MainScreen {
         line.setUserData(new String[]{srcKey, dstKey}); // store keys for deletion
     }
 
-    // ------------------------------------------------------------------
+  
     //  Styling helpers
-    // ------------------------------------------------------------------
 
     private void styleToggle(ToggleButton btn) {
         btn.setFont(Font.font("System", FontWeight.NORMAL, 12));
