@@ -1,5 +1,4 @@
 import java.io.File;
-import java.util.function.BiConsumer;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -25,7 +24,7 @@ public class LoadScreen {
 
     private final VBox root;
 
-    LoadScreen(BiConsumer<Ghana, String> onLoaded, Stage ownerStage) {
+    LoadScreen(App.LoadCallback onLoaded, Stage ownerStage) {
         root = new VBox(24);
         root.setAlignment(Pos.CENTER);
         root.setPadding(new Insets(60));

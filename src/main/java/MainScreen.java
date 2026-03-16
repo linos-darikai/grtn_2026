@@ -1,37 +1,49 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+
+import java.io.IOException;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Parent;
+import javafx.collections.FXCollections;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.transform.Scale;
+import javafx.scene.transform.Translate;
 
 /**
  * Main visualization screen. Renders the loaded graph as an interactive
@@ -50,6 +62,7 @@ public class MainScreen {
 
     private final BorderPane root;
     private final Ghana ghana;
+    private final String filePath;
     private final Pane graphPane;
     private final Group graphGroup;
     private final Map<String, Circle> nodeCircles = new HashMap<>();
@@ -60,6 +73,8 @@ public class MainScreen {
     private Line selectedEdge = null;
     private double zoomFactor = 1.0;
     private boolean laid = false;
+    private double lastViewW;
+    private double lastViewH;
 
     private final String fileName;
     private Label topStatsLabel;
@@ -84,29 +99,115 @@ public class MainScreen {
         graphPane = new Pane(graphGroup);
         graphPane.setStyle("-fx-background-color: " + SURFACE + ";");
 
+        Rectangle clip = new Rectangle();
+        clip.widthProperty().bind(graphPane.widthProperty());
+        clip.heightProperty().bind(graphPane.heightProperty());
+        graphPane.setClip(clip);
+
         graphPane.setOnScroll(ev -> {
-            double delta = ev.getDeltaY() > 0 ? 1.1 : 0.9;
-            zoomFactor = Math.max(0.1, Math.min(5.0, zoomFactor * delta));
-            graphGroup.getTransforms().setAll(new Scale(zoomFactor, zoomFactor));
+            if (ev.isControlDown() || ev.isMetaDown()) {
+                double delta = ev.getDeltaY() > 0 ? 1.1 : 0.9;
+                double oldZoom = zoomFactor;
+                zoomFactor = Math.max(0.1, Math.min(5.0, zoomFactor * delta));
+
+                double mouseX = ev.getX();
+                double mouseY = ev.getY();
+                double scale = zoomFactor / oldZoom;
+                panX = mouseX - scale * (mouseX - panX);
+                panY = mouseY - scale * (mouseY - panY);
+
+                applyTransform();
+            } else {
+                panX += ev.getDeltaX();
+                panY += ev.getDeltaY();
+                applyTransform();
+            }
             ev.consume();
         });
 
-        ScrollPane scroll = new ScrollPane(graphPane);
-        scroll.setStyle("-fx-background: " + SURFACE + "; -fx-border-color: transparent;");
-        scroll.setPannable(true);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        graphPane.setOnMousePressed(ev -> {
+            if (ev.getTarget() == graphPane) {
+                dragStartX = ev.getSceneX();
+                dragStartY = ev.getSceneY();
+                dragPanX = panX;
+                dragPanY = panY;
+            }
+        });
+        graphPane.setOnMouseClicked(ev -> {
+            if (ev.getTarget() == graphPane && !ev.isDragDetect()) {
+                resetAllNodes();
+                selectedNode = null;
+                selectedKey = null;
+            }
+        });
+        graphPane.setOnMouseDragged(ev -> {
+            if (ev.getTarget() == graphPane) {
+                panX = dragPanX + (ev.getSceneX() - dragStartX);
+                panY = dragPanY + (ev.getSceneY() - dragStartY);
+                applyTransform();
+            }
+        });
 
-        root.setCenter(scroll);
+        Button zoomInBtn = new Button("+");
+        Button zoomOutBtn = new Button("-");
+        String zoomBtnStyle = "-fx-background-color: " + BTN_BG + ";"
+                + "-fx-text-fill: " + TEXT + ";"
+                + "-fx-background-radius: 6;"
+                + "-fx-padding: 4 10;"
+                + "-fx-cursor: hand;"
+                + "-fx-font-size: 16;"
+                + "-fx-font-weight: bold;";
+        zoomInBtn.setStyle(zoomBtnStyle);
+        zoomOutBtn.setStyle(zoomBtnStyle);
+        zoomInBtn.setOnAction(e -> applyZoomDelta(1.2));
+        zoomOutBtn.setOnAction(e -> applyZoomDelta(0.8));
+
+        VBox zoomBox = new VBox(4, zoomInBtn, zoomOutBtn);
+        zoomBox.setPadding(new Insets(0, 10, 10, 0));
+        zoomBox.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+
+        StackPane graphStack = new StackPane(graphPane, zoomBox);
+        StackPane.setAlignment(zoomBox, Pos.BOTTOM_RIGHT);
+
+        root.setCenter(graphStack);
         root.setRight(buildSidebar());
         root.setBottom(buildToolbar());
 
-        scroll.viewportBoundsProperty().addListener((obs, old, bounds) -> {
-            if (bounds.getWidth() > 100 && bounds.getHeight() > 100 && !laid) {
-                laid = true;
-                layoutGraph(bounds.getWidth(), bounds.getHeight());
-            }
+        graphPane.widthProperty().addListener((obs, old, w) -> {
+            lastViewW = w.doubleValue();
+            tryInitialLayout();
         });
+        graphPane.heightProperty().addListener((obs, old, h) -> {
+            lastViewH = h.doubleValue();
+            tryInitialLayout();
+        });
+    }
+
+    private double dragStartX, dragStartY, dragPanX, dragPanY;
+    private double panX = 0, panY = 0;
+
+    private void applyTransform() {
+        graphGroup.getTransforms().setAll(
+                new Translate(panX, panY),
+                new Scale(zoomFactor, zoomFactor, 0, 0));
+    }
+
+    private void applyZoomDelta(double delta) {
+        double oldZoom = zoomFactor;
+        zoomFactor = Math.max(0.1, Math.min(5.0, zoomFactor * delta));
+        double cx = lastViewW / 2.0;
+        double cy = lastViewH / 2.0;
+        double scale = zoomFactor / oldZoom;
+        panX = cx - scale * (cx - panX);
+        panY = cy - scale * (cy - panY);
+        applyTransform();
+    }
+
+    private void tryInitialLayout() {
+        if (lastViewW > 100 && lastViewH > 100 && !laid) {
+            laid = true;
+            layoutGraph(lastViewW, lastViewH);
+        }
     }
 
     Parent getRoot() {
@@ -140,6 +241,46 @@ public class MainScreen {
         topStatsLabel = new Label(ghana.getTownCount() + " towns  |  "
                 + ghana.getEdgeCount() + " edges");
         topStatsLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search town...");
+        searchField.setPrefWidth(180);
+        searchField.setStyle("-fx-background-color: " + CARD + ";"
+                + "-fx-text-fill: " + TEXT + ";"
+                + "-fx-prompt-text-fill: #606080;"
+                + "-fx-border-color: #2a3a5a;"
+                + "-fx-border-radius: 15;"
+                + "-fx-background-radius: 15;"
+                + "-fx-padding: 5 12;");
+        searchField.setFont(Font.font("System", 12));
+
+        searchField.setOnAction(e -> {
+            String query = searchField.getText().trim().toLowerCase();
+            if (query.isEmpty()) return;
+
+            String bestKey = null;
+            for (Map.Entry<String, Town> entry : ghana.getTowns().entrySet()) {
+                if (entry.getKey().equals(query)) {
+                    bestKey = entry.getKey();
+                    break;
+                }
+                if (entry.getKey().startsWith(query) && bestKey == null) {
+                    bestKey = entry.getKey();
+                }
+                if (entry.getValue().getName().toLowerCase().contains(query)
+                        && bestKey == null) {
+                    bestKey = entry.getKey();
+                }
+            }
+
+            if (bestKey != null) {
+                Circle c = nodeCircles.get(bestKey);
+                if (c != null) {
+                    selectNode(c, bestKey);
+                    searchField.setText(ghana.getTowns().get(bestKey).getName());
+                }
+            }
+        });
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -202,6 +343,9 @@ public class MainScreen {
     //  Bottom toolbar
     // ------------------------------------------------------------------
 
+    private Button editBtnRef;
+    private Button addBtnRef;
+
     private HBox buildToolbar() {
         HBox bar = new HBox(10);
         bar.setAlignment(Pos.CENTER_LEFT);
@@ -219,6 +363,12 @@ public class MainScreen {
         pathBtn.setStyle(pathBtn.getStyle()
                 + "-fx-background-color: " + ACCENT + ";");
 
+        editBtnRef = editBtn;
+        editBtn.setOnAction(e -> toggleEditMode());
+
+        addBtnRef = addBtn;
+        addBtn.setOnAction(e -> toggleAddMode());
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -231,7 +381,7 @@ public class MainScreen {
         pathBtn.setOnAction(e -> handlePathAction());
 
         bar.getChildren().addAll(deleteBtn, editBtn, addBtn, pathBtn,
-                spacer, modeLabel, edgeLabel);
+                spacer);
         return bar;
     }
 
@@ -604,23 +754,26 @@ public class MainScreen {
         int n = keys.size();
         if (n == 0) return;
 
-        double area = 2500.0 * n;
+        double area = 4000.0 * n;
         double side = Math.sqrt(area);
-        double k = 0.85 * Math.sqrt(area / n);
+        double k = Math.sqrt(area / n);
+        double simCx = side / 2.0;
+        double simCy = side / 2.0;
+        double maxDrift = side * 0.45;
 
         Random rng = new Random(42);
         double[] posX = new double[n];
         double[] posY = new double[n];
         for (int i = 0; i < n; i++) {
-            posX[i] = rng.nextDouble() * side;
-            posY[i] = rng.nextDouble() * side;
+            posX[i] = simCx + (rng.nextDouble() - 0.5) * side * 0.6;
+            posY[i] = simCy + (rng.nextDouble() - 0.5) * side * 0.6;
         }
 
         Map<String, Integer> keyIndex = new HashMap<>();
         for (int i = 0; i < n; i++) keyIndex.put(keys.get(i), i);
 
-        int iterations = 120;
-        double temp = side * 0.15;
+        int iterations = 250;
+        double temp = side * 0.10;
         double cooling = temp / (iterations + 1);
 
         for (int iter = 0; iter < iterations; iter++) {
@@ -632,7 +785,7 @@ public class MainScreen {
                     double dx = posX[i] - posX[j];
                     double dy = posY[i] - posY[j];
                     double dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 0.01) dist = 0.01;
+                    if (dist < 0.1) dist = 0.1;
                     double repForce = (k * k) / dist;
                     double fx = (dx / dist) * repForce;
                     double fy = (dy / dist) * repForce;
@@ -651,7 +804,7 @@ public class MainScreen {
                     double dx = posX[si] - posX[di];
                     double dy = posY[si] - posY[di];
                     double dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 0.01) dist = 0.01;
+                    if (dist < 0.1) dist = 0.1;
                     double attForce = (dist * dist) / k;
                     double fx = (dx / dist) * attForce;
                     double fy = (dy / dist) * attForce;
@@ -660,19 +813,31 @@ public class MainScreen {
                 }
             }
 
+            double gravityStrength = 0.3;
             for (int i = 0; i < n; i++) {
+                double gx = (simCx - posX[i]) * gravityStrength;
+                double gy = (simCy - posY[i]) * gravityStrength;
+                dispX[i] += gx;
+                dispY[i] += gy;
+
                 double dLen = Math.sqrt(dispX[i] * dispX[i] + dispY[i] * dispY[i]);
                 if (dLen < 0.01) dLen = 0.01;
                 double cap = Math.min(dLen, temp);
                 posX[i] += (dispX[i] / dLen) * cap;
                 posY[i] += (dispY[i] / dLen) * cap;
-                posX[i] = Math.max(0, Math.min(side, posX[i]));
-                posY[i] = Math.max(0, Math.min(side, posY[i]));
+
+                double dFromCenter = Math.sqrt(
+                        (posX[i] - simCx) * (posX[i] - simCx)
+                        + (posY[i] - simCy) * (posY[i] - simCy));
+                if (dFromCenter > maxDrift) {
+                    posX[i] = simCx + (posX[i] - simCx) * maxDrift / dFromCenter;
+                    posY[i] = simCy + (posY[i] - simCy) * maxDrift / dFromCenter;
+                }
             }
             temp -= cooling;
         }
 
-        double margin = 60;
+        double margin = 80;
         double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE;
         double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
         for (int i = 0; i < n; i++) {
@@ -686,7 +851,7 @@ public class MainScreen {
         if (rangeX < 1) rangeX = 1;
         if (rangeY < 1) rangeY = 1;
 
-        double canvasW = Math.max(1400, n * 16);
+        double canvasW = Math.max(1800, n * 20);
         double canvasH = canvasW * 0.75;
 
         for (int i = 0; i < n; i++) {
@@ -756,7 +921,9 @@ public class MainScreen {
         nodeLabels.values().forEach(l -> graphGroup.getChildren().add(l));
 
         zoomFactor = Math.min(viewW / canvasW, viewH / canvasH) * 0.95;
-        graphGroup.getTransforms().setAll(new Scale(zoomFactor, zoomFactor));
+        panX = 0;
+        panY = 0;
+        applyTransform();
     }
 
     // ------------------------------------------------------------------
@@ -809,7 +976,7 @@ public class MainScreen {
         double tipX = x2 - ux * (NODE_RADIUS + 2);
         double tipY = y2 - uy * (NODE_RADIUS + 2);
 
-        double sz = 4;
+        double sz = 10;
         double baseX = tipX - ux * sz;
         double baseY = tipY - uy * sz;
 
@@ -818,9 +985,9 @@ public class MainScreen {
 
         Polygon arrow = new Polygon(
                 tipX, tipY,
-                baseX + perpX * sz * 0.45, baseY + perpY * sz * 0.45,
-                baseX - perpX * sz * 0.45, baseY - perpY * sz * 0.45);
-        arrow.setFill(Color.web("#5c6a8a", 0.5));
+                baseX + perpX * sz * 0.4, baseY + perpY * sz * 0.4,
+                baseX - perpX * sz * 0.4, baseY - perpY * sz * 0.4);
+        arrow.setFill(Color.web("#5c6a8a", 0.7));
         arrow.setMouseTransparent(true);
         return arrow;
     }
@@ -862,7 +1029,9 @@ public class MainScreen {
     //  Node selection – highlights outgoing edges
     // ------------------------------------------------------------------
 
-    private void selectNode(Circle circle, String key) {
+    private final Set<String> highlightedNeighborKeys = new HashSet<>();
+
+    private void resetAllNodes() {
         if (selectedNode != null) {
             selectedNode.setStroke(Color.web("#ffffff"));
             selectedNode.setStrokeWidth(1.5);
@@ -874,25 +1043,72 @@ public class MainScreen {
             selectedEdge.setStrokeWidth(3.0);
             selectedEdge = null;
         }
+        if (selectedKey != null) {
+            Text selLbl = nodeLabels.get(selectedKey);
+            if (selLbl != null)
+                selLbl.setFont(Font.font("System", FontWeight.NORMAL, 10));
+        }
+        for (String nk : highlightedNeighborKeys) {
+            Circle nc = nodeCircles.get(nk);
+            if (nc != null) {
+                nc.setStroke(Color.web("#ffffff"));
+                nc.setStrokeWidth(1.5);
+                nc.setRadius(NODE_RADIUS);
+            }
+            Text nLbl = nodeLabels.get(nk);
+            if (nLbl != null)
+                nLbl.setFont(Font.font("System", FontWeight.NORMAL, 10));
+        }
+        highlightedNeighborKeys.clear();
 
         edgeLines.forEach(l -> {
             l.setStroke(Color.web("#5c6a8a", 0.45));
             l.setStrokeWidth(3.0);
         });
-        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
+        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.7)));
+    }
+
+    private void selectNode(Circle circle, String key) {
+        resetAllNodes();
 
         selectedNode = circle;
+        selectedKey = key;
+
         circle.setStroke(Color.web(ACCENT));
         circle.setStrokeWidth(3);
-        circle.setRadius(NODE_RADIUS + 2);
+        circle.setRadius(NODE_RADIUS * 2);
         circle.toFront();
 
         Text lbl = nodeLabels.get(key);
-        if (lbl != null) lbl.toFront();
+        if (lbl != null) {
+            lbl.setFont(Font.font("SansSerif", FontWeight.BOLD, 12));
+            lbl.toFront();
+        }
 
         HashMap<String, Town> towns = ghana.getTowns();
         Town srcTown = towns.get(key);
         if (srcTown == null) return;
+
+        Set<String> neighborKeys = new HashSet<>();
+        if (srcTown.getNeighbors() != null) {
+            neighborKeys.addAll(srcTown.getNeighbors().keySet());
+        }
+
+        for (String nk : neighborKeys) {
+            Circle nc = nodeCircles.get(nk);
+            if (nc != null) {
+                nc.setStroke(Color.web(ACCENT, 0.7));
+                nc.setStrokeWidth(2.5);
+                nc.setRadius(NODE_RADIUS * 1.6);
+                nc.toFront();
+            }
+            Text nLbl = nodeLabels.get(nk);
+            if (nLbl != null) {
+                nLbl.setFont(Font.font("SansSerif", FontWeight.BOLD, 11));
+                nLbl.toFront();
+            }
+            highlightedNeighborKeys.add(nk);
+        }
 
         List<String> keys = new ArrayList<>(towns.keySet());
         keys.sort(String::compareTo);
@@ -913,11 +1129,6 @@ public class MainScreen {
                     edgeLines.get(idx).toFront();
                     arrowHeads.get(idx).setFill(Color.web(ACCENT, 0.9));
                     arrowHeads.get(idx).toFront();
-
-                    Circle dstCircle = nodeCircles.get(dstKey);
-                    if (dstCircle != null) dstCircle.toFront();
-                    Text dstLbl = nodeLabels.get(dstKey);
-                    if (dstLbl != null) dstLbl.toFront();
                 }
                 idx++;
             }
