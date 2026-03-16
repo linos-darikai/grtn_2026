@@ -245,6 +245,133 @@ public class Ghana {
     }
 
     /**
+     * Completely removes a town from the network, including all outgoing edges
+     * from it and all incoming edges to it.
+     *
+     * @param townName the name of the town to remove (case-insensitive)
+     * @return true if the town was removed, false if it didn't exist
+     */
+    public boolean removeTown(String townName) {
+        String key = normalizeKey(townName);
+        if (!towns.containsKey(key)) {
+            return false;
+        }
+
+        // 1. Remove the town itself and its outgoing edges
+        Town removed = towns.remove(key);
+        if (removed != null && removed.getNeighbors() != null) {
+            edgeCount -= removed.getNeighbors().size();
+        }
+
+        // 2. Remove all incoming edges pointing to this town
+        for (Town town : towns.values()) {
+            if (town.getNeighbors() != null && town.getNeighbors().containsKey(key)) {
+                town.getNeighbors().remove(key);
+                edgeCount--;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes a directed edge between two towns.
+     *
+     * @param fromTown the origin town
+     * @param toTown   the destination town
+     * @return true if the edge was removed, false if it didn't exist
+     */
+    public boolean removeEdge(String fromTown, String toTown) {
+        String fromKey = normalizeKey(fromTown);
+        String toKey = normalizeKey(toTown);
+
+        Town from = towns.get(fromKey);
+        if (from != null && from.getNeighbors() != null && from.getNeighbors().containsKey(toKey)) {
+            from.getNeighbors().remove(toKey);
+            edgeCount--;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Helper to rewrite the graph file, excluding lines matching the condition.
+     */
+    private void deleteLinesFromFile(String filePath, java.util.function.Predicate<String[]> shouldDelete)
+            throws IOException {
+        java.io.File file = new java.io.File(filePath);
+        if (!file.exists())
+            return;
+
+        boolean isCsv = filePath.endsWith(".csv");
+        String separator = isCsv ? "," : ",\\s*";
+
+        List<String> linesToKeep = new ArrayList<>();
+
+        try (FileReader fr = new FileReader(file);
+                BufferedReader br = new BufferedReader(fr)) {
+
+            String line = br.readLine();
+            if (line == null)
+                return;
+
+            // keep header for csv
+            if (isCsv) {
+                linesToKeep.add(line);
+                line = br.readLine();
+            }
+
+            while (line != null) {
+                if (line.isBlank()) {
+                    linesToKeep.add(line);
+                    line = br.readLine();
+                    continue;
+                }
+
+                String[] parts = line.split(separator);
+                if (parts.length >= 2 && !shouldDelete.test(parts)) {
+                    linesToKeep.add(line);
+                }
+                line = br.readLine();
+            }
+        }
+
+        try (java.io.FileWriter fw = new java.io.FileWriter(file);
+                java.io.BufferedWriter bw = new java.io.BufferedWriter(fw)) {
+            for (String l : linesToKeep) {
+                bw.write(l);
+                bw.newLine();
+            }
+        }
+    }
+
+    /**
+     * Deletes all edges associated with a town from the given file.
+     */
+    public void deleteTownFromFile(String filePath, String townName) throws IOException {
+        String key = normalizeKey(townName);
+        deleteLinesFromFile(filePath, parts -> {
+            String srcKey = normalizeKey(parts[0]);
+            String dstKey = normalizeKey(parts[1]);
+            return srcKey.equals(key) || dstKey.equals(key);
+        });
+    }
+
+    /**
+     * Deletes a specific directed edge from the given file.
+     */
+    public void deleteEdgeFromFile(String filePath, String fromTown, String toTown) throws IOException {
+        String fKey = normalizeKey(fromTown);
+        String tKey = normalizeKey(toTown);
+        deleteLinesFromFile(filePath, parts -> {
+            String srcKey = normalizeKey(parts[0]);
+            String dstKey = normalizeKey(parts[1]);
+            return srcKey.equals(fKey) && dstKey.equals(tKey);
+        });
+    }
+
+    /**
      * Returns the full map of all towns in the network.
      *
      * @return a {@link HashMap} mapping normalized town names to {@link Town}
@@ -313,149 +440,16 @@ public class Ghana {
         System.out.println("Total directed roads (edges): " + edgeCount);
     }
 
-    // -----------------------------------------------------------------------
-    // Mutation – rename, update edge, save
-    // -----------------------------------------------------------------------
-
-    /**
-     * Renames a town, updating the master map key and every neighbor reference
-     * across the entire graph.
-     *
-     * @param oldName current town name (case-insensitive)
-     * @param newName desired new name (display casing preserved)
-     * @throws IllegalArgumentException if old town doesn't exist or new key
-     *                                  already taken by a different town
-     */
-    public void renameTown(String oldName, String newName) {
-        String oldKey = normalizeKey(oldName);
-        String newKey = normalizeKey(newName);
-
-        Town town = towns.get(oldKey);
-        if (town == null) {
-            throw new IllegalArgumentException("Town not found: " + oldName);
-        }
-
-        if (!oldKey.equals(newKey) && towns.containsKey(newKey)) {
-            throw new IllegalArgumentException(
-                    "A town named \"" + newName + "\" already exists");
-        }
-
-        town.setName(newName);
-
-        if (!oldKey.equals(newKey)) {
-            towns.remove(oldKey);
-            towns.put(newKey, town);
-
-            HashMap<String, int[]> ownNeighbors = town.getNeighbors();
-            if (ownNeighbors.containsKey(oldKey)) {
-                int[] self = ownNeighbors.remove(oldKey);
-                ownNeighbors.put(newKey, self);
-            }
-
-            for (Town other : towns.values()) {
-                if (other == town) continue;
-                HashMap<String, int[]> nb = other.getNeighbors();
-                if (nb.containsKey(oldKey)) {
-                    int[] edge = nb.remove(oldKey);
-                    nb.put(newKey, edge);
-                }
-            }
-        }
-    }
-
-    /**
-     * Adds a new isolated town (no edges) to the network.
-     *
-     * @param name the display name for the new town
-     * @throws IllegalArgumentException if a town with that name already exists
-     */
-    public void addTown(String name) {
-        String key = normalizeKey(name);
-        if (towns.containsKey(key)) {
-            throw new IllegalArgumentException(
-                    "Town \"" + name + "\" already exists");
-        }
-        towns.put(key, new Town(name));
-    }
-
-    /**
-     * Updates (or creates) a directed edge between two towns.
-     *
-     * @param fromTown    source town name (case-insensitive)
-     * @param toTown      destination town name (case-insensitive)
-     * @param newDistance  new distance in km (must be non-negative)
-     * @param newTime     new time in minutes (must be non-negative)
-     */
-    public void updateEdge(String fromTown, String toTown,
-                           int newDistance, int newTime) {
-        String fromKey = normalizeKey(fromTown);
-        String toKey = normalizeKey(toTown);
-
-        Town src = towns.get(fromKey);
-        if (src == null) {
-            throw new IllegalArgumentException("Source town not found: " + fromTown);
-        }
-        if (!towns.containsKey(toKey)) {
-            throw new IllegalArgumentException("Destination town not found: " + toTown);
-        }
-
-        if (!src.hasNeighbor(toKey)) {
-            edgeCount++;
-        }
-        src.addNeighbor(toKey, newDistance, newTime);
-    }
-
-    /**
-     * Serializes the full graph back to a file, matching the format implied by
-     * its extension ({@code .csv} with header, {@code .txt} without).
-     *
-     * @param path the output file path
-     * @throws IOException if writing fails
-     */
-    public void saveToFile(String path) throws IOException {
-        boolean csv = path.endsWith(".csv");
-        try (FileWriter fw = new FileWriter(path);
-             BufferedWriter writer = new BufferedWriter(fw)) {
-
-            if (csv) {
-                writer.write("source,destination,distance_km,avg_time_min");
-                writer.newLine();
-            }
-
-            List<String> sortedKeys = new ArrayList<>(towns.keySet());
-            sortedKeys.sort(String::compareTo);
-
-            for (String srcKey : sortedKeys) {
-                Town srcTown = towns.get(srcKey);
-                HashMap<String, int[]> neighbors = srcTown.getNeighbors();
-                if (neighbors == null) continue;
-
-                List<String> nKeys = new ArrayList<>(neighbors.keySet());
-                nKeys.sort(String::compareTo);
-
-                for (String dstKey : nKeys) {
-                    int[] edge = neighbors.get(dstKey);
-                    Town dstTown = towns.get(dstKey);
-                    String dstName = dstTown != null ? dstTown.getName() : dstKey;
-                    writer.write(srcTown.getName() + ","
-                            + dstName + ","
-                            + edge[0] + "," + edge[1]);
-                    writer.newLine();
-                }
-            }
-        }
-    }
-
-
-
     /**
      * Computes the shortest distance between two towns in the network and
      * returns both the distance and the ordered path.
      *
-     * <p>Uses Dijkstra's algorithm over the distance weights (index 0 of
+     * <p>
+     * Uses Dijkstra's algorithm over the distance weights (index 0 of
      * each edge's {@code int[]}). The returned {@link PathResult} contains
      * the total shortest distance and the list of town names (display
-     * casing) traversed from origin to destination.</p>
+     * casing) traversed from origin to destination.
+     * </p>
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
@@ -552,10 +546,12 @@ public class Ghana {
      * Computes the fastest travel time between two towns in the network and
      * returns both the time and the ordered path.
      *
-     * <p>Uses Dijkstra's algorithm over the <strong>average travel time</strong>
+     * <p>
+     * Uses Dijkstra's algorithm over the <strong>average travel time</strong>
      * weights (index 1 of each edge's {@code int[]}). This may produce a
      * different route than {@link #getDistance(String, String)}, which
-     * optimizes for distance instead.</p>
+     * optimizes for distance instead.
+     * </p>
      *
      * @param fromTown the name of the origin town (case-insensitive)
      * @param toTown   the name of the destination town (case-insensitive)
@@ -662,10 +658,12 @@ public class Ghana {
      * to {@link #getDistance(String, String)}, then walks the returned path
      * to accumulate the travel time from each edge's time weight.
      *
-     * <p>Distance comes directly from the {@link PathResult}. Time is the
+     * <p>
+     * Distance comes directly from the {@link PathResult}. Time is the
      * sum of the time weights (index 1 of each edge's {@code int[]}) along
      * the distance-optimal path, which may differ from the time-optimal
-     * path.</p>
+     * path.
+     * </p>
      *
      * @param fromKey lowercase key of the origin town
      * @param toKey   lowercase key of the destination town
@@ -691,18 +689,20 @@ public class Ghana {
             totalTime += edge[1];
         }
 
-        return new int[]{result.getDistance(), totalTime};
+        return new int[] { result.getDistance(), totalTime };
     }
 
     /**
      * Walks a <strong>complete</strong> path (where every consecutive pair
      * shares a direct edge) and sums the distance and time from each edge.
      *
-     * <p>This is intended for paths produced by algorithms like Dijkstra
+     * <p>
+     * This is intended for paths produced by algorithms like Dijkstra
      * ({@link #getDistance}, {@link #getFastestTime}) where every hop is
      * guaranteed to be a direct edge. Unlike
      * {@link #computeRouteTotals(List)}, it does <em>not</em> re-optimise
-     * each segment — it reads the actual edge weights as given.</p>
+     * each segment — it reads the actual edge weights as given.
+     * </p>
      *
      * @param path an ordered list of town names (display casing) where each
      *             consecutive pair is connected by a direct directed edge
@@ -732,22 +732,26 @@ public class Ghana {
             totalTime += edge[1];
         }
 
-        return new int[]{totalDistance, totalTime};
+        return new int[] { totalDistance, totalTime };
     }
 
     /**
      * Walks a supplied route of waypoints and accumulates the total distance
      * and total travel time across all consecutive segments.
      *
-     * <p>For each pair of consecutive waypoints the method runs
+     * <p>
+     * For each pair of consecutive waypoints the method runs
      * {@link #computeSegmentTotals(String, String)} (Dijkstra by distance)
      * to obtain the shortest-distance path's distance and time. This means
      * a route like {@code ["A", "D"]} works even if {@code A} and {@code D}
      * do not share a direct edge — the algorithm will find the optimal
-     * multi-hop path for that segment.</p>
+     * multi-hop path for that segment.
+     * </p>
      *
-     * <p>This is the shared core used by both {@link #getFuelCost} and
-     * {@link #getTotalCost}.</p>
+     * <p>
+     * This is the shared core used by both {@link #getFuelCost} and
+     * {@link #getTotalCost}.
+     * </p>
      *
      * @param route an ordered list of waypoint town names from origin to
      *              destination
@@ -773,35 +777,41 @@ public class Ghana {
             totalTime += segment[1];
         }
 
-        return new int[]{totalDistance, totalTime};
+        return new int[] { totalDistance, totalTime };
     }
 
     /**
      * Computes the fuel (distance) cost for a supplied route through the
      * network.
      *
-     * <p>The route is a list of <strong>waypoints</strong>. For each pair of
+     * <p>
+     * The route is a list of <strong>waypoints</strong>. For each pair of
      * consecutive waypoints the shortest-distance path is computed via
      * Dijkstra (see {@link #computeSegmentTotals(String, String)}), so the
-     * waypoints need not be direct neighbours.</p>
+     * waypoints need not be direct neighbours.
+     * </p>
      *
      * <pre>
      *   distance_cost = (total_distance_km / 8) &times; 11.955
      * </pre>
      *
-     * <p>where {@code /} is <strong>integer division</strong> (floor).
-     * Constants used:</p>
+     * <p>
+     * where {@code /} is <strong>integer division</strong> (floor).
+     * Constants used:
+     * </p>
      * <ul>
-     *   <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
-     *   <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
+     * <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
+     * <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
      * </ul>
      *
-     * <p><strong>Edge cases:</strong></p>
+     * <p>
+     * <strong>Edge cases:</strong>
+     * </p>
      * <ul>
-     *   <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
-     *   <li>If no path exists between any consecutive pair of waypoints, or
-     *       a town is not in the network, returns {@code -1.0}.</li>
-     *   <li>Town names are matched case-insensitively.</li>
+     * <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
+     * <li>If no path exists between any consecutive pair of waypoints, or
+     * a town is not in the network, returns {@code -1.0}.</li>
+     * <li>Town names are matched case-insensitively.</li>
      * </ul>
      *
      * @param route an ordered list of waypoint town names from origin to
@@ -826,11 +836,13 @@ public class Ghana {
      * Computes the total travel cost for a supplied route, combining fuel
      * cost and time cost.
      *
-     * <p>The route is a list of <strong>waypoints</strong>. For each pair of
+     * <p>
+     * The route is a list of <strong>waypoints</strong>. For each pair of
      * consecutive waypoints the shortest-distance path is computed via
      * Dijkstra (see {@link #computeSegmentTotals(String, String)}), so the
      * waypoints need not be direct neighbours. Shares the same underlying
-     * {@link #computeRouteTotals(List)} helper as {@link #getFuelCost}.</p>
+     * {@link #computeRouteTotals(List)} helper as {@link #getFuelCost}.
+     * </p>
      *
      * <pre>
      *   distance_cost = (total_distance_km / 8) &times; 11.955
@@ -838,19 +850,23 @@ public class Ghana {
      *   total_cost    = distance_cost + time_cost
      * </pre>
      *
-     * <p>Constants used:</p>
+     * <p>
+     * Constants used:
+     * </p>
      * <ul>
-     *   <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
-     *   <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
-     *   <li>Time cost: {@value #TIME_COST_PER_MINUTE} GHS per minute</li>
+     * <li>Vehicle fuel consumption: {@value #KM_PER_LITRE} km per litre</li>
+     * <li>Fuel price: {@value #FUEL_PRICE_PER_LITRE} GHS per litre</li>
+     * <li>Time cost: {@value #TIME_COST_PER_MINUTE} GHS per minute</li>
      * </ul>
      *
-     * <p><strong>Edge cases:</strong></p>
+     * <p>
+     * <strong>Edge cases:</strong>
+     * </p>
      * <ul>
-     *   <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
-     *   <li>If no path exists between any consecutive pair of waypoints, or
-     *       a town is not in the network, returns {@code -1.0}.</li>
-     *   <li>Town names are matched case-insensitively.</li>
+     * <li>A {@code null}, empty, or single-town route returns {@code 0.0}.</li>
+     * <li>If no path exists between any consecutive pair of waypoints, or
+     * a town is not in the network, returns {@code -1.0}.</li>
+     * <li>Town names are matched case-insensitively.</li>
      * </ul>
      *
      * @param route an ordered list of waypoint town names from origin to
@@ -872,20 +888,22 @@ public class Ghana {
         return distanceCost + timeCost;
     }
 
-
-
     /**
      * Recommends the best route between two towns by comparing the
      * shortest-distance route and the fastest-time route on total cost.
      *
-     * <p>Internally calls {@link #getDistance(String, String)} and
+     * <p>
+     * Internally calls {@link #getDistance(String, String)} and
      * {@link #getFastestTime(String, String)} to obtain the two candidate
      * paths, then uses {@link #computeRouteTotals(List)} to derive
-     * distance, time, fuel cost, time cost, and total cost for each.</p>
+     * distance, time, fuel cost, time cost, and total cost for each.
+     * </p>
      *
-     * <p>The route with the <strong>lower total cost</strong> is
+     * <p>
+     * The route with the <strong>lower total cost</strong> is
      * recommended. If both costs are equal the recommendation is
-     * {@code "either"}.</p>
+     * {@code "either"}.
+     * </p>
      *
      * @param fromTown the origin town (case-insensitive)
      * @param toTown   the destination town (case-insensitive)
@@ -934,6 +952,134 @@ public class Ghana {
     }
 
     /**
+     * Finds the top 3 paths with lowest total cost between two towns.
+     *
+     * <p>
+     * Uses a priority queue exploration to find multiple distinct paths,
+     * then ranks them by total cost (fuel + time).
+     * </p>
+     *
+     * @param fromTown the name of the origin town (case-insensitive)
+     * @param toTown   the name of the destination town (case-insensitive)
+     * @return a {@link List} of {@link PathWithCost} objects containing
+     *         path and cost details, sorted by total cost (lowest first)
+     */
+    public List<PathWithCost> getTop3PathsByTotalCost(String fromTown, String toTown) {
+        String startKey = normalizeKey(fromTown);
+        String endKey = normalizeKey(toTown);
+
+        List<PathWithCost> result = new ArrayList<>();
+
+        if (!towns.containsKey(startKey) || !towns.containsKey(endKey)) {
+            return result;
+        }
+
+        class PathNode implements Comparable<PathNode> {
+            String currentTownKey;
+            int dist;
+            List<String> pathKeys;
+
+            PathNode(String currentTownKey, int dist, List<String> pathKeys) {
+                this.currentTownKey = currentTownKey;
+                this.dist = dist;
+                this.pathKeys = pathKeys;
+            }
+
+            @Override
+            public int compareTo(PathNode other) {
+                return Integer.compare(this.dist, other.dist);
+            }
+        }
+
+        PriorityQueue<PathNode> pq = new PriorityQueue<>();
+        List<String> initKeys = new ArrayList<>();
+        initKeys.add(startKey);
+
+        pq.add(new PathNode(startKey, 0, initKeys));
+
+        List<List<String>> foundPaths = new ArrayList<>();
+        int maxPaths = 50; // Explore more paths to find best by cost
+
+        while (!pq.isEmpty() && foundPaths.size() < maxPaths) {
+            PathNode current = pq.poll();
+            String u = current.currentTownKey;
+
+            if (u.equals(endKey)) {
+                List<String> names = new ArrayList<>();
+                for (String key : current.pathKeys) {
+                    names.add(towns.get(key).getName());
+                }
+                foundPaths.add(names);
+                continue;
+            }
+
+            Town currentTown = towns.get(u);
+            if (currentTown != null && currentTown.getNeighbors() != null) {
+                for (Map.Entry<String, int[]> entry : currentTown.getNeighbors().entrySet()) {
+                    String v = entry.getKey();
+                    int weight = entry.getValue()[0];
+
+                    if (current.pathKeys.contains(v)) {
+                        continue;
+                    }
+
+                    List<String> newPathKeys = new ArrayList<>(current.pathKeys);
+                    newPathKeys.add(v);
+
+                    pq.add(new PathNode(v, current.dist + weight, newPathKeys));
+                }
+            }
+        }
+
+        // Now calculate total cost for each path and sort
+        class PathCostPair implements Comparable<PathCostPair> {
+            List<String> path;
+            double totalCost;
+            int distance;
+            int time;
+            double fuelCost;
+            double timeCost;
+
+            PathCostPair(List<String> path, int distance, int time, double fuelCost, double timeCost, double totalCost) {
+                this.path = path;
+                this.distance = distance;
+                this.time = time;
+                this.fuelCost = fuelCost;
+                this.timeCost = timeCost;
+                this.totalCost = totalCost;
+            }
+
+            @Override
+            public int compareTo(PathCostPair other) {
+                return Double.compare(this.totalCost, other.totalCost);
+            }
+        }
+
+        List<PathCostPair> pathsWithCost = new ArrayList<>();
+
+        for (List<String> path : foundPaths) {
+            int[] totals = walkPathTotals(path);
+            if (totals != null) {
+                double fuelCost = (totals[0] / KM_PER_LITRE) * FUEL_PRICE_PER_LITRE;
+                double timeCost = totals[1] * TIME_COST_PER_MINUTE;
+                double totalCost = fuelCost + timeCost;
+                pathsWithCost.add(new PathCostPair(path, totals[0], totals[1], fuelCost, timeCost, totalCost));
+            }
+        }
+
+        pathsWithCost.sort(PathCostPair::compareTo);
+
+        // Return top 3
+        int count = Math.min(3, pathsWithCost.size());
+        for (int i = 0; i < count; i++) {
+            PathCostPair p = pathsWithCost.get(i);
+            result.add(new PathWithCost(p.path, p.distance, p.time, p.fuelCost, p.timeCost, p.totalCost));
+        }
+
+        return result;
+    }
+
+    /**
      * Finds the top 3 shortest paths between two towns, ranked by total
      * distance.
      *
@@ -979,7 +1125,7 @@ public class Ghana {
         PriorityQueue<PathNode> pq = new PriorityQueue<>();
         List<String> initKeys = new ArrayList<>();
         initKeys.add(startKey);
-        
+
         pq.add(new PathNode(startKey, 0, initKeys));
 
         while (!pq.isEmpty()) {
@@ -992,7 +1138,7 @@ public class Ghana {
                     names.add(towns.get(key).getName());
                 }
                 top3Paths.add(names);
-                
+
                 if (top3Paths.size() == 3) {
                     break;
                 }

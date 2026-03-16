@@ -120,25 +120,15 @@ Bekwai,Agogo,144,156
 Bekwai,Gomoa Fetteh,85,93
 Beposo,Asiwa,219,234
 Beposo,Breman Asikuma,46,63
-Beposo,Sefwi Bekwai,74,73
 Berekum,Apam,283,479
 Berekum,Daboya,158,223
 Berekum,Kadjebi,206,207
 Berekum,Wenchi,53,60
-Bibiani,Cape Coast,114,96
-Bibiani,Denu,42,48
-Bibiani,Juaso,236,255
-Bibiani,Nkroful,144,174
 Bimbilla,Gomoa Fetteh,73,62
 Bimbilla,Savelugu,84,67
 Bogoso,Agogo,234,244
 Bogoso,Axim,161,163
 Bogoso,Esiama,92,95
-Bogoso,Sefwi Bekwai,79,115
-Bole,Akwatia,298,325
-Bole,Duayaw Nkwanta,109,186
-Bole,Mampong,290,281
-Bole,Sawla,304,311
 Bolgatanga,Asamankese,125,111
 Bolgatanga,Ho,347,288
 Bolgatanga,Navrongo,103,117
@@ -164,7 +154,6 @@ Chinderi,Nandom,225,268
 Chinderi,Nkonya,201,216
 Daboya,Akropong,168,161
 Daboya,Asankragwa,211,219
-Dadieso,Bibiani,323,325
 Dadieso,Sefwi Wiawso,182,254
 Dambai,Asokore Mampong,406,452
 Dambai,Kadjebi,229,232
@@ -237,12 +226,8 @@ Goaso,Kaleo,227,226
 Goaso,Koforidua,65,75
 Goaso,Konongo,135,168
 Goaso,Sampa,367,357
-Gomoa Eshiem,Aboso,145,126
-Gomoa Eshiem,Bole,148,114
 Gomoa Fetteh,Buduburam,114,124
-Gomoa Fetteh,Gomoa Eshiem,171,213
 Gomoa Fetteh,Wassa Akropong,294,316
-Gwollu,Bibiani,74,84
 Gwollu,Kaleo,149,151
 Gwollu,Takoradi,205,191
 Half Assini,Cape Coast,201,190
@@ -260,7 +245,6 @@ Hohoe,Keta,172,183
 Inchaban,Gambaga,224,216
 Inchaban,Kansaworodo,119,148
 Inchaban,Legon,54,74
-Inchaban,Sefwi Bekwai,258,224
 Jasikan,Ada Foah,75,79
 Jasikan,Agogo,77,77
 Jasikan,Damongo,186,172
@@ -273,7 +257,6 @@ Juaso,Kade,228,244
 Juaso,Nkawie,71,76
 Juaso,Peki,63,59
 Kade,Begoro,99,85
-Kade,Bibiani,209,204
 Kadjebi,Denu,262,287
 Kadjebi,Kete Krachi,213,261
 Kaleo,Bongo,107,129
@@ -310,7 +293,6 @@ Konongo,Ejisu,35,49
 Konongo,Kansaworodo,127,111
 Kpandai,Akwatia,448,546
 Kpandai,Akyem Oda,267,267
-Kpandai,Bole,247,247
 Kpandai,Paga,310,294
 Kpando,Jasikan,84,108
 Kpando,Peki,206,168
@@ -342,8 +324,6 @@ Legon,Denu,57,52
 Legon,Funsi,179,171
 Legon,Swedru,239,261
 Legon,Teshie,130,125
-Madina,Adenta,221,218
-Madina,Aflao,364,358
 Mallam,Achimota,171,265
 Mallam,Fomena,49,55
 Mallam,Half Assini,250,263
@@ -410,7 +390,6 @@ Oda,Tafo,63,56
 Odupongkpehe,Awutu Breku,109,133
 Odupongkpehe,Breman Asikuma,204,306
 Odupongkpehe,Kpandai,182,170
-Odupongkpehe,Madina,104,91
 Offinso,Asokwa,156,141
 Offinso,Bawjiase,146,149
 Offinso,Esiama,81,69
@@ -430,7 +409,6 @@ Prampram,Asokore Mampong,27,36
 Prampram,Bekwai,109,119
 Prampram,Tarkwa,50,76
 Prestea,Bogoso,132,149
-Prestea,Gomoa Eshiem,155,158
 Salaga,Buipe,206,193
 Salaga,Dunkwa-on-Offin,68,83
 Salaga,Kpandai,185,195
@@ -455,13 +433,9 @@ Sefwi Akontombra,Goaso,202,211
 Sefwi Akontombra,Prampram,242,220
 Sefwi Akontombra,Tarkwa,186,132
 Sefwi Akontombra,Wiawso,136,106
-Sefwi Bekwai,Fomena,178,179
-Sefwi Bekwai,Hamile,305,283
-Sefwi Bekwai,Suhum,109,119
 Sefwi Wiawso,Gambaga,112,133
 Sefwi Wiawso,Kade,397,346
 Sefwi Wiawso,Sandema,228,230
-Sefwi Wiawso,Sefwi Bekwai,186,149
 Sekondi,Tarkwa,114,114
 Sekondi,Wenchi,322,336
 Senya Beraku,Agona Asafo,260,318
@@ -471,7 +445,6 @@ Senya Beraku,Walewale,285,322
 Shama,Assin Fosu,110,149
 Shama,Koforidua,103,153
 Shama,Salaga,100,115
-Sirigu,Bibiani,124,131
 Sirigu,Chiana,80,70
 Sirigu,Kunkua,85,88
 Sogakope,Bongo,162,156
@@ -480,8 +453,6 @@ Sogakope,Kpando,259,238
 Sogakope,Nkawkaw,247,200
 Somanya,Ejisu,338,354
 Somanya,Ho,348,506
-Stanley,Apowa,20,2
-Stanley,Mpohor,50,5
 Suhum,Elmina,267,323
 Suhum,Hohoe,308,337
 Suhum,Koforidua,117,120
@@ -490,13 +461,10 @@ Sunyani,Lawra,176,140
 Sunyani,Techiman,170,197
 Sunyani,Toase,124,116
 Swedru,Agona Nkwanta,239,368
-Swedru,Sefwi Bekwai,116,106
 Tafo,Asesewa,202,190
 Tafo,Asiwa,149,164
 Tafo,Buduburam,68,54
-Tafo,Madina,349,555
-Takoradi,Dambai,150,175
-Takoradi,Nkawkaw,193,186
+Takoradi,Dambai,154,175
 Takoradi,Sekondi,131,156
 Tamale,Tarkwa,159,200
 Tamale,Yendi,340,276
@@ -507,7 +475,6 @@ Tarkwa,Tumu,135,130
 Techiman,Berekum,254,222
 Techiman,Dunkwa-on-Offin,256,236
 Techiman,Kukuom,266,264
-Tema,Madina,132,102
 Tema,Obuasi,285,224
 Teshie,Aburi,179,225
 Teshie,Ashaiman,153,146
@@ -518,7 +485,6 @@ Toase,Kumawu,119,179
 Tolon,Kpandai,20,24
 Tolon,Suhum,148,138
 Tongo,Kpando,56,56
-Tongo,Madina,161,178
 Tongo,Wa,79,81
 Tongo,Yeji,374,400
 Tumu,Denu,154,123
@@ -544,7 +510,6 @@ Wenchi,Dormaa Ahenkro,185,182
 Wenchi,Jasikan,89,86
 Wenchi,Juaso,51,62
 Wiawso,Esiama,137,141
-Wiawso,Madina,144,158
 Winneba,Adenta,179,205
 Winneba,Ho,300,372
 Winneba,Mampong,55,61

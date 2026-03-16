@@ -69,7 +69,6 @@ Anloga, Suhum, 126, 128
 Anloga, Tamale, 165, 177
 Apam, Kunkua, 112, 115
 Apam, Winneba, 185, 182
-Apowa, Cape Coast, 103, 112
 Apowa, Inchaban, 103, 111
 Asamankese, Akim Swedru, 154, 235
 Asamankese, Dormaa Ahenkro, 143, 169
@@ -124,7 +123,6 @@ Berekum, Apam, 283, 479
 Berekum, Daboya, 158, 223
 Berekum, Kadjebi, 206, 207
 Berekum, Wenchi, 53, 60
-Bibiani, Cape Coast, 114, 96
 Bibiani, Denu, 42, 48
 Bibiani, Juaso, 236, 255
 Bibiani, Nkroful, 144, 174
@@ -153,8 +151,6 @@ Buduburam, Odupongkpehe, 206, 213
 Buipe, Bolgatanga, 124, 118
 Buipe, Kumasi, 365, 347
 Buipe, Yendi, 165, 166
-Cape Coast, Elmina, 102, 95
-Cape Coast, Sandema, 100, 142
 Chiana, Akwatia, 255, 227
 Chiana, Sirigu, 87, 95
 Chiana, Wenchi, 123, 173
@@ -244,7 +240,6 @@ Gomoa Fetteh, Wassa Akropong, 294, 316
 Gwollu, Bibiani, 74, 84
 Gwollu, Kaleo, 149, 151
 Gwollu, Takoradi, 205, 191
-Half Assini, Cape Coast, 201, 190
 Half Assini, Nkroful, 42, 55
 Half Assini, Tolon, 339, 359
 Hamile, Goaso, 81, 74
@@ -355,7 +350,6 @@ Mankessim, Juaso, 238, 178
 Mankessim, Saltpond, 94, 90
 Manso Adubia, Asiwa, 121, 135
 Manso Adubia, Denu, 279, 277
-Manso Adubia, Teshie, 214, 245
 Manso Nkwanta, Asankragwa, 51, 50
 Manso Nkwanta, Manso Adubia, 272, 279
 Manso Nkwanta, Navrongo, 152, 116

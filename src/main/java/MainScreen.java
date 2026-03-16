@@ -24,6 +24,8 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -65,21 +67,28 @@ public class MainScreen {
     private final Group graphGroup;
     private final Map<String, Circle> nodeCircles = new HashMap<>();
     private final Map<String, double[]> nodePositions = new HashMap<>();
-    private final List<Line> edgeLines = new ArrayList<>();
     private final List<Polygon> arrowHeads = new ArrayList<>();
+    private final List<Line> edgeLines = new ArrayList<>();
     private Circle selectedNode = null;
-    private String selectedKey = null;
-    private boolean editMode = false;
-    private boolean addMode = false;
-    private VBox editPanel = null;
+    private Line selectedEdge = null;
     private double zoomFactor = 1.0;
     private boolean laid = false;
     private double lastViewW;
     private double lastViewH;
 
-    MainScreen(Ghana ghana, String fileName, String filePath, Runnable onReload) {
+    private final String fileName;
+    private Label topStatsLabel;
+    private Label sideStatsLabel;
+
+    // Path highlighting
+    private List<PathWithCost> highlightedPaths = new ArrayList<>();
+    private static final String[] PATH_COLORS = {"#00ff88", "#ffaa00", "#ff3366"};
+    private VBox recommendCard;
+    private VBox costsCard;
+
+    MainScreen(Ghana ghana, String fileName, Runnable onReload) {
         this.ghana = ghana;
-        this.filePath = filePath;
+        this.fileName = fileName;
 
         root = new BorderPane();
         root.setStyle("-fx-background-color: " + BG + ";");
@@ -229,9 +238,9 @@ public class MainScreen {
         Label fileLabel = new Label(fileName);
         fileLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
 
-        Label statsLabel = new Label(ghana.getTownCount() + " towns  |  "
+        topStatsLabel = new Label(ghana.getTownCount() + " towns  |  "
                 + ghana.getEdgeCount() + " edges");
-        statsLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
+        topStatsLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
 
         TextField searchField = new TextField();
         searchField.setPromptText("Search town...");
@@ -281,8 +290,7 @@ public class MainScreen {
         reloadBtn.setOnAction(e -> onReload.run());
 
         bar.getChildren().addAll(selectBtn, freeformBtn,
-                new Separator(), fileLabel, statsLabel,
-                spacer, searchField, reloadBtn);
+                new Separator(), fileLabel, topStatsLabel, spacer, reloadBtn);
         return bar;
     }
 
@@ -296,15 +304,19 @@ public class MainScreen {
         sidebar.setPadding(new Insets(16));
         sidebar.setStyle("-fx-background-color: " + SURFACE + ";");
 
-        sidebar.getChildren().add(sidebarCard("Network Stats",
+        VBox statsCard = sidebarCard("Network Stats",
                 "Towns: " + ghana.getTownCount()
-                        + "\nEdges: " + ghana.getEdgeCount()));
+                        + "\nEdges: " + ghana.getEdgeCount());
+        sideStatsLabel = (Label) statsCard.getChildren().get(1); // the body label
+        sidebar.getChildren().add(statsCard);
 
-        sidebar.getChildren().add(sidebarCard("Recommend",
-                "Select two towns to\ncompare routes.\n\n(Coming soon)"));
+        recommendCard = sidebarCard("Recommendation",
+                "Click 'Path' to find\nthe best routes between\ntwo towns.");
+        sidebar.getChildren().add(recommendCard);
 
-        sidebar.getChildren().add(sidebarCard("Costs",
-                "Route cost breakdown\nwill appear here.\n\n(Coming soon)"));
+        costsCard = sidebarCard("Route Costs",
+                "Cost breakdown will\nappear here after\npath calculation.");
+        sidebar.getChildren().add(costsCard);
 
         return sidebar;
     }
@@ -360,9 +372,366 @@ public class MainScreen {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
+        Label modeLabel = new Label("Node");
+        modeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 12;");
+        Label edgeLabel = new Label("Edge");
+        edgeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 12;");
+
+        deleteBtn.setOnAction(e -> handleDeleteAction());
+        pathBtn.setOnAction(e -> handlePathAction());
+
         bar.getChildren().addAll(deleteBtn, editBtn, addBtn, pathBtn,
                 spacer);
         return bar;
+    }
+
+    private void handleDeleteAction() {
+        if (selectedNode == null && selectedEdge == null) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+            alert.setTitle("Information");
+            alert.setHeaderText("Nothing Selected");
+            alert.setContentText("Please select a town or road to delete.");
+            alert.setGraphic(null);
+            alert.getDialogPane().getStylesheets().add(getClass().getResource("/style.css") != null ? getClass().getResource("/style.css").toExternalForm() : "");
+            alert.showAndWait();
+            return;
+        }
+
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirm Deletion");
+
+        try {
+            if (selectedNode != null) {
+                Object[] data = (Object[]) selectedNode.getUserData();
+                String key = (String) data[1];
+                Town town = ghana.getTown(key);
+                alert.setHeaderText("Delete Town");
+                alert.setContentText("Are you sure you want to completely delete '" + town.getName() + "' and its roads?");
+                
+                if (alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == javafx.scene.control.ButtonType.OK) {
+                    ghana.deleteTownFromFile(fileName, key);
+                    ghana.removeTown(key);
+                    selectedNode = null;
+                    updateStatsLabels();
+                    layoutGraph(graphPane.getWidth(), graphPane.getHeight());
+                }
+            } else if (selectedEdge != null) {
+                String[] keys = (String[]) selectedEdge.getUserData();
+                String srcKey = keys[0];
+                String dstKey = keys[1];
+                Town srcTown = ghana.getTown(srcKey);
+                Town dstTown = ghana.getTown(dstKey);
+                
+                alert.setHeaderText("Delete Road");
+                alert.setContentText("Are you sure you want to delete the road from '" + srcTown.getName() + "' to '" + dstTown.getName() + "'?");
+                
+                if (alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == javafx.scene.control.ButtonType.OK) {
+                    ghana.deleteEdgeFromFile(fileName, srcKey, dstKey);
+                    ghana.removeEdge(srcKey, dstKey);
+                    selectedEdge = null;
+                    updateStatsLabels();
+                    layoutGraph(graphPane.getWidth(), graphPane.getHeight());
+                }
+            }
+        } catch (java.io.IOException ex) {
+            javafx.scene.control.Alert error = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+            error.setTitle("File Error");
+            error.setHeaderText("Failed to rewrite the data file");
+            error.setContentText(ex.getMessage());
+            error.showAndWait();
+        }
+    }
+
+    private void updateStatsLabels() {
+        if (topStatsLabel != null) {
+            topStatsLabel.setText(ghana.getTownCount() + " towns  |  " + ghana.getEdgeCount() + " edges");
+        }
+        if (sideStatsLabel != null) {
+            sideStatsLabel.setText("Towns: " + ghana.getTownCount() + "\nEdges: " + ghana.getEdgeCount());
+        }
+    }
+
+    private void handlePathAction() {
+        // Create dialog to get start and end towns
+        javafx.scene.control.Dialog<javafx.util.Pair<String, String>> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Find Best Routes");
+        dialog.setHeaderText("Enter the start and destination towns to find the top 3 lowest cost paths.");
+
+        // Set button types
+        javafx.scene.control.ButtonType calculateButtonType = new javafx.scene.control.ButtonType("Calculate", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(calculateButtonType, javafx.scene.control.ButtonType.CANCEL);
+
+        // Get all town names and sort them
+        List<String> townNames = new ArrayList<>();
+        for (Town town : ghana.getTowns().values()) {
+            townNames.add(town.getName());
+        }
+        townNames.sort(String::compareTo);
+
+        // Create ComboBox fields with autocomplete
+        javafx.scene.control.ComboBox<String> startCombo = new javafx.scene.control.ComboBox<>();
+        startCombo.getItems().addAll(townNames);
+        startCombo.setEditable(true);
+        startCombo.setPromptText("Start town (e.g., Accra)");
+        startCombo.setMaxWidth(Double.MAX_VALUE);
+        setupComboBoxAutocomplete(startCombo);
+
+        javafx.scene.control.ComboBox<String> endCombo = new javafx.scene.control.ComboBox<>();
+        endCombo.getItems().addAll(townNames);
+        endCombo.setEditable(true);
+        endCombo.setPromptText("End town (e.g., Kumasi)");
+        endCombo.setMaxWidth(Double.MAX_VALUE);
+        setupComboBoxAutocomplete(endCombo);
+
+        VBox content = new VBox(10);
+        content.getChildren().addAll(
+                new Label("Start Town:"), startCombo,
+                new Label("End Town:"), endCombo
+        );
+        content.setPadding(new Insets(20));
+        dialog.getDialogPane().setContent(content);
+
+        // Convert result when calculate button is clicked
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == calculateButtonType) {
+                String start = startCombo.getValue() != null ? startCombo.getValue().trim() :
+                              (startCombo.getEditor().getText() != null ? startCombo.getEditor().getText().trim() : "");
+                String end = endCombo.getValue() != null ? endCombo.getValue().trim() :
+                            (endCombo.getEditor().getText() != null ? endCombo.getEditor().getText().trim() : "");
+                return new javafx.util.Pair<>(start, end);
+            }
+            return null;
+        });
+
+        // Show dialog and process result
+        dialog.showAndWait().ifPresent(pair -> {
+            String startTown = pair.getKey();
+            String endTown = pair.getValue();
+
+            // Validate inputs
+            if (startTown.isEmpty() || endTown.isEmpty()) {
+                showAlert("Invalid Input", "Please enter both start and end towns.", javafx.scene.control.Alert.AlertType.WARNING);
+                return;
+            }
+
+            // Check if towns exist
+            Town start = ghana.getTown(startTown);
+            Town end = ghana.getTown(endTown);
+
+            if (start == null) {
+                showAlert("Town Not Found", "Start town '" + startTown + "' does not exist in the network.", javafx.scene.control.Alert.AlertType.ERROR);
+                return;
+            }
+
+            if (end == null) {
+                showAlert("Town Not Found", "End town '" + endTown + "' does not exist in the network.", javafx.scene.control.Alert.AlertType.ERROR);
+                return;
+            }
+
+            // Calculate top 3 paths by total cost
+            List<PathWithCost> paths = ghana.getTop3PathsByTotalCost(startTown, endTown);
+
+            if (paths.isEmpty()) {
+                showAlert("No Path Found", "No path exists between '" + start.getName() + "' and '" + end.getName() + "'.", javafx.scene.control.Alert.AlertType.INFORMATION);
+                return;
+            }
+
+            // Store and highlight the paths
+            highlightedPaths = paths;
+            highlightPaths();
+            updateSidebarWithPaths();
+        });
+    }
+
+    private void showAlert(String title, String content, javafx.scene.control.Alert.AlertType type) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    /**
+     * Sets up autocomplete/filtering for a ComboBox.
+     * As the user types, the dropdown filters to show matching towns.
+     */
+    private void setupComboBoxAutocomplete(ComboBox<String> comboBox) {
+        ObservableList<String> allItems = FXCollections.observableArrayList(comboBox.getItems());
+
+        comboBox.getEditor().textProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue == null || newValue.isEmpty()) {
+                comboBox.setItems(allItems);
+                comboBox.hide();
+            } else {
+                ObservableList<String> filtered = FXCollections.observableArrayList();
+                String search = newValue.toLowerCase();
+
+                for (String item : allItems) {
+                    if (item.toLowerCase().contains(search)) {
+                        filtered.add(item);
+                    }
+                }
+
+                comboBox.setItems(filtered);
+                if (!filtered.isEmpty() && !comboBox.isShowing()) {
+                    comboBox.show();
+                }
+            }
+        });
+
+        // When user selects from dropdown, update the editor text
+        comboBox.setOnAction(e -> {
+            if (comboBox.getValue() != null) {
+                comboBox.getEditor().setText(comboBox.getValue());
+            }
+        });
+    }
+
+    private void highlightPaths() {
+        // Reset all edges to default color first
+        edgeLines.forEach(l -> {
+            l.setStroke(Color.web("#5c6a8a", 0.45));
+            l.setStrokeWidth(3.0);
+        });
+        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
+
+        // Clear node selection
+        if (selectedNode != null) {
+            selectedNode.setStroke(Color.web("#ffffff"));
+            selectedNode.setStrokeWidth(1.5);
+            selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
+        }
+        if (selectedEdge != null) {
+            selectedEdge = null;
+        }
+
+        // Highlight each path with its color
+        HashMap<String, Town> towns = ghana.getTowns();
+        List<String> keys = new ArrayList<>(towns.keySet());
+        keys.sort(String::compareTo);
+
+        for (int pathIdx = 0; pathIdx < highlightedPaths.size(); pathIdx++) {
+            PathWithCost pathWithCost = highlightedPaths.get(pathIdx);
+            List<String> path = pathWithCost.getPath();
+            String color = PATH_COLORS[pathIdx % PATH_COLORS.length];
+
+            // Highlight each edge in the path
+            for (int i = 0; i < path.size() - 1; i++) {
+                String fromTown = path.get(i);
+                String toTown = path.get(i + 1);
+                String fromKey = fromTown.toLowerCase().trim();
+                String toKey = toTown.toLowerCase().trim();
+
+                // Find the edge line corresponding to this connection
+                int edgeIdx = 0;
+                for (String srcKey : keys) {
+                    Town srcTown = towns.get(srcKey);
+                    if (srcTown.getNeighbors() == null) continue;
+
+                    for (String dstKey : srcTown.getNeighbors().keySet()) {
+                        if (srcKey.equals(fromKey) && dstKey.equals(toKey)) {
+                            if (edgeIdx < edgeLines.size()) {
+                                Line line = edgeLines.get(edgeIdx);
+                                line.setStroke(Color.web(color, 0.9));
+                                line.setStrokeWidth(4.5);
+                                line.toFront();
+
+                                Polygon arrow = arrowHeads.get(edgeIdx);
+                                arrow.setFill(Color.web(color, 0.95));
+                                arrow.toFront();
+                            }
+                        }
+                        edgeIdx++;
+                    }
+                }
+            }
+
+            // Highlight nodes in the path
+            for (String townName : path) {
+                String key = townName.toLowerCase().trim();
+                Circle circle = nodeCircles.get(key);
+                if (circle != null) {
+                    circle.toFront();
+                }
+                Text label = nodeLabels.get(key);
+                if (label != null) {
+                    label.toFront();
+                }
+            }
+        }
+    }
+
+    private void updateSidebarWithPaths() {
+        if (highlightedPaths.isEmpty()) {
+            return;
+        }
+
+        // Update recommendation card
+        PathWithCost bestPath = highlightedPaths.get(0);
+
+        // Recreate the recommendation card with better formatting
+        recommendCard.getChildren().clear();
+
+        Label recTitle = new Label("Recommended Route");
+        recTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+        recTitle.setStyle("-fx-text-fill: " + ACCENT + ";");
+
+        VBox pathBox = new VBox(4);
+        Label pathLabel = new Label("Best route (lowest cost):");
+        pathLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
+
+        Label pathText = new Label(bestPath.getPathString());
+        pathText.setWrapText(true);
+        pathText.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 10; -fx-font-weight: bold;");
+
+        Label costLabel = new Label(String.format("Total: %.2f GHS", bestPath.getTotalCost()));
+        costLabel.setStyle("-fx-text-fill: " + PATH_COLORS[0] + "; -fx-font-size: 12; -fx-font-weight: bold;");
+
+        Label detailLabel = new Label(String.format("%d km, %d min", bestPath.getDistance(), bestPath.getTime()));
+        detailLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+        pathBox.getChildren().addAll(pathLabel, pathText, costLabel, detailLabel);
+        recommendCard.getChildren().addAll(recTitle, pathBox);
+
+        // Update costs card with colored legend
+        costsCard.getChildren().clear();
+
+        Label costTitle = new Label("Route Comparison");
+        costTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+        costTitle.setStyle("-fx-text-fill: " + ACCENT + ";");
+        costsCard.getChildren().add(costTitle);
+
+        for (int i = 0; i < highlightedPaths.size(); i++) {
+            PathWithCost p = highlightedPaths.get(i);
+            String color = PATH_COLORS[i % PATH_COLORS.length];
+
+            VBox pathItem = new VBox(2);
+            pathItem.setPadding(new Insets(6, 0, 6, 0));
+
+            // Color indicator and path number
+            HBox header = new HBox(6);
+            Label colorBox = new Label("█");
+            colorBox.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 16;");
+            Label pathNum = new Label("Path " + (i + 1));
+            pathNum.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 11; -fx-font-weight: bold;");
+            header.getChildren().addAll(colorBox, pathNum);
+
+            Label fuelLabel = new Label(String.format("Fuel: %.2f GHS", p.getFuelCost()));
+            fuelLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+            Label timeLabel = new Label(String.format("Time: %.2f GHS", p.getTimeCost()));
+            timeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 9;");
+
+            Label totalLabel = new Label(String.format("Total: %.2f GHS", p.getTotalCost()));
+            totalLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 10; -fx-font-weight: bold;");
+
+            Label distTimeLabel = new Label(String.format("(%d km, %d min)", p.getDistance(), p.getTime()));
+            distTimeLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 8;");
+
+            pathItem.getChildren().addAll(header, fuelLabel, timeLabel, totalLabel, distTimeLabel);
+            costsCard.getChildren().add(pathItem);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -575,10 +944,17 @@ public class MainScreen {
                 double[] dstPos = nodePositions.get(dstKey);
                 if (dstPos == null) continue;
 
+                final String fSrcKey = srcKey;
+                final String fDstKey = dstKey;
                 Line line = new Line(srcPos[0], srcPos[1], dstPos[0], dstPos[1]);
                 line.setStroke(Color.web("#5c6a8a", 0.45));
-                line.setStrokeWidth(0.8);
-                line.setMouseTransparent(true);
+                line.setStrokeWidth(3.0);
+                
+                line.setOnMousePressed(e -> {
+                    selectEdge(line, fSrcKey, fDstKey);
+                    e.consume();
+                });
+                
                 edgeLines.add(line);
 
                 Polygon arrow = createArrowHead(srcPos[0], srcPos[1],
@@ -660,6 +1036,12 @@ public class MainScreen {
             selectedNode.setStroke(Color.web("#ffffff"));
             selectedNode.setStrokeWidth(1.5);
             selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
+        }
+        if (selectedEdge != null) {
+            selectedEdge.setStroke(Color.web("#5c6a8a", 0.45));
+            selectedEdge.setStrokeWidth(3.0);
+            selectedEdge = null;
         }
         if (selectedKey != null) {
             Text selLbl = nodeLabels.get(selectedKey);
@@ -681,7 +1063,7 @@ public class MainScreen {
 
         edgeLines.forEach(l -> {
             l.setStroke(Color.web("#5c6a8a", 0.45));
-            l.setStrokeWidth(0.8);
+            l.setStrokeWidth(3.0);
         });
         arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.7)));
     }
@@ -752,495 +1134,33 @@ public class MainScreen {
             }
         }
         circle.toFront();
-        if (lbl != null) lbl.toFront();
-
-        if (editMode) {
-            showEditPanel(key);
-        }
+        circle.setUserData(new Object[]{circle.getUserData(), key}); // store key for deletion
     }
 
-    // ------------------------------------------------------------------
-    //  Edit mode
-    // ------------------------------------------------------------------
-
-    private void toggleEditMode() {
-        if (addMode) toggleAddMode();
-        editMode = !editMode;
-        if (editMode) {
-            editBtnRef.setStyle("-fx-background-color: " + ACCENT + ";"
-                    + "-fx-text-fill: " + TEXT + ";"
-                    + "-fx-background-radius: 8;"
-                    + "-fx-padding: 6 14;"
-                    + "-fx-cursor: hand;");
-
-            VBox prompt = new VBox(12);
-            prompt.setPrefWidth(280);
-            prompt.setPadding(new Insets(20));
-            prompt.setStyle("-fx-background-color: " + SURFACE + ";");
-
-            Label heading = new Label("Edit Mode");
-            heading.setFont(Font.font("System", FontWeight.BOLD, 16));
-            heading.setStyle("-fx-text-fill: " + ACCENT + ";");
-
-            Label hint = new Label("Click a node in the graph\nto edit its properties.");
-            hint.setWrapText(true);
-            hint.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 13;");
-
-            prompt.getChildren().addAll(heading, hint);
-            editPanel = prompt;
-            root.setLeft(editPanel);
-        } else {
-            styleActionBtn(editBtnRef, true);
-            editPanel = null;
-            root.setLeft(null);
+    private void selectEdge(Line line, String srcKey, String dstKey) {
+        if (selectedNode != null) {
+            selectedNode.setStroke(Color.web("#ffffff"));
+            selectedNode.setStrokeWidth(1.5);
+            selectedNode.setRadius(NODE_RADIUS);
+            selectedNode = null;
         }
-    }
-
-    private void showEditPanel(String key) {
-        Town town = ghana.getTowns().get(key);
-        if (town == null) return;
-
-        VBox panel = new VBox(12);
-        panel.setPrefWidth(300);
-        panel.setPadding(new Insets(16));
-        panel.setStyle("-fx-background-color: " + SURFACE + ";");
-
-        Label heading = new Label("Edit Town");
-        heading.setFont(Font.font("System", FontWeight.BOLD, 16));
-        heading.setStyle("-fx-text-fill: " + ACCENT + ";");
-
-        Label nameLabel = new Label("Town Name");
-        nameLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 11;");
-        TextField nameField = new TextField(town.getName());
-        styleTextField(nameField);
-
-        panel.getChildren().addAll(heading, nameLabel, nameField);
-
-        Label nbHeading = new Label("Outgoing Edges");
-        nbHeading.setFont(Font.font("System", FontWeight.BOLD, 13));
-        nbHeading.setStyle("-fx-text-fill: " + TEXT + ";");
-        nbHeading.setPadding(new Insets(8, 0, 0, 0));
-        panel.getChildren().add(nbHeading);
-
-        GridPane header = new GridPane();
-        header.setHgap(6);
-        Label hNeighbor = new Label("Neighbor");
-        hNeighbor.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hNeighbor.setPrefWidth(120);
-        Label hDist = new Label("Dist (km)");
-        hDist.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hDist.setPrefWidth(65);
-        Label hTime = new Label("Time (min)");
-        hTime.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hTime.setPrefWidth(65);
-        header.add(hNeighbor, 0, 0);
-        header.add(hDist, 1, 0);
-        header.add(hTime, 2, 0);
-        panel.getChildren().add(header);
-
-        HashMap<String, int[]> neighbors = town.getNeighbors();
-        List<String> nbKeys = new ArrayList<>(neighbors.keySet());
-        nbKeys.sort(String::compareTo);
-
-        VBox edgeRows = new VBox(6);
-        List<TextField[]> edgeFields = new ArrayList<>();
-
-        for (String nbKey : nbKeys) {
-            int[] edge = neighbors.get(nbKey);
-            Town nbTown = ghana.getTowns().get(nbKey);
-            String displayName = nbTown != null ? nbTown.getName() : nbKey;
-
-            GridPane row = new GridPane();
-            row.setHgap(6);
-
-            Label nbLabel = new Label(displayName);
-            nbLabel.setStyle("-fx-text-fill: " + TEXT + "; -fx-font-size: 12;");
-            nbLabel.setPrefWidth(120);
-            nbLabel.setWrapText(true);
-
-            TextField distField = new TextField(String.valueOf(edge[0]));
-            styleTextField(distField);
-            distField.setPrefWidth(65);
-
-            TextField timeField = new TextField(String.valueOf(edge[1]));
-            styleTextField(timeField);
-            timeField.setPrefWidth(65);
-
-            row.add(nbLabel, 0, 0);
-            row.add(distField, 1, 0);
-            row.add(timeField, 2, 0);
-            edgeRows.getChildren().add(row);
-
-            edgeFields.add(new TextField[]{distField, timeField});
+        if (selectedEdge != null) {
+            selectedEdge.setStroke(Color.web("#5c6a8a", 0.45));
+            selectedEdge.setStrokeWidth(3.0);
         }
 
-        ScrollPane edgeScroll = new ScrollPane(edgeRows);
-        edgeScroll.setFitToWidth(true);
-        edgeScroll.setStyle("-fx-background: " + SURFACE + ";"
-                + " -fx-border-color: transparent;");
-        edgeScroll.setPrefHeight(350);
-        VBox.setVgrow(edgeScroll, Priority.ALWAYS);
-        panel.getChildren().add(edgeScroll);
-
-        HBox buttons = new HBox(10);
-        buttons.setAlignment(Pos.CENTER_LEFT);
-        buttons.setPadding(new Insets(10, 0, 0, 0));
-
-        Button saveBtn = new Button("Save");
-        Button cancelBtn = new Button("Cancel");
-        styleActionBtn(saveBtn, true);
-        saveBtn.setStyle(saveBtn.getStyle()
-                + "-fx-background-color: #1b7a3d;");
-        styleActionBtn(cancelBtn, true);
-
-        saveBtn.setOnAction(e -> handleSave(key, nameField, nbKeys, edgeFields));
-        cancelBtn.setOnAction(e -> {
-            editPanel = null;
-            root.setLeft(null);
-            toggleEditMode();
+        edgeLines.forEach(l -> {
+            l.setStroke(Color.web("#5c6a8a", 0.45));
+            l.setStrokeWidth(3.0);
         });
+        arrowHeads.forEach(a -> a.setFill(Color.web("#5c6a8a", 0.5)));
 
-        buttons.getChildren().addAll(saveBtn, cancelBtn);
-        panel.getChildren().add(buttons);
-
-        editPanel = panel;
-        root.setLeft(editPanel);
-    }
-
-    private void handleSave(String originalKey, TextField nameField,
-                            List<String> nbKeys, List<TextField[]> edgeFields) {
-        String newName = nameField.getText().trim();
-        if (newName.isEmpty()) {
-            showError("Town name cannot be empty.");
-            return;
-        }
-
-        for (int i = 0; i < nbKeys.size(); i++) {
-            TextField[] fields = edgeFields.get(i);
-            String distStr = fields[0].getText().trim();
-            String timeStr = fields[1].getText().trim();
-            int dist, time;
-            try {
-                dist = Integer.parseInt(distStr);
-                time = Integer.parseInt(timeStr);
-            } catch (NumberFormatException ex) {
-                Town nb = ghana.getTowns().get(nbKeys.get(i));
-                String label = nb != null ? nb.getName() : nbKeys.get(i);
-                showError("Invalid number for edge to " + label + ".");
-                return;
-            }
-            if (dist < 0 || time < 0) {
-                Town nb = ghana.getTowns().get(nbKeys.get(i));
-                String label = nb != null ? nb.getName() : nbKeys.get(i);
-                showError("Distance/time for " + label + " cannot be negative.");
-                return;
-            }
-        }
-
-        Town town = ghana.getTowns().get(originalKey);
-        if (town == null) return;
-
-        try {
-            String oldName = town.getName();
-            if (!oldName.equals(newName)) {
-                ghana.renameTown(oldName, newName);
-            }
-
-            for (int i = 0; i < nbKeys.size(); i++) {
-                TextField[] fields = edgeFields.get(i);
-                int dist = Integer.parseInt(fields[0].getText().trim());
-                int time = Integer.parseInt(fields[1].getText().trim());
-                ghana.updateEdge(newName, nbKeys.get(i), dist, time);
-            }
-
-            ghana.saveToFile(filePath);
-
-            editPanel = null;
-            root.setLeft(null);
-            if (editMode) toggleEditMode();
-
-            layoutGraph(lastViewW, lastViewH);
-
-        } catch (IllegalArgumentException ex) {
-            showError(ex.getMessage());
-        } catch (IOException ex) {
-            showError("Failed to save file: " + ex.getMessage());
-        }
-    }
-
-    private void showError(String msg) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Edit Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
-
-    private void styleTextField(TextField field) {
-        field.setStyle("-fx-background-color: " + CARD + ";"
-                + "-fx-text-fill: " + TEXT + ";"
-                + "-fx-border-color: #2a3a5a;"
-                + "-fx-border-radius: 4;"
-                + "-fx-background-radius: 4;"
-                + "-fx-padding: 4 8;");
-        field.setFont(Font.font("System", 12));
-    }
-
-    private ListCell<String> makeComboCell() {
-        return new ListCell<>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setStyle("-fx-background-color: " + CARD + ";");
-                } else {
-                    setText(item);
-                    setStyle("-fx-background-color: " + CARD + ";"
-                            + "-fx-text-fill: " + TEXT + ";"
-                            + "-fx-font-size: 12;");
-                }
-            }
-        };
-    }
-
-    // ------------------------------------------------------------------
-    //  Add mode
-    // ------------------------------------------------------------------
-
-    private void toggleAddMode() {
-        if (editMode) toggleEditMode();
-        addMode = !addMode;
-        if (addMode) {
-            addBtnRef.setStyle("-fx-background-color: " + ACCENT + ";"
-                    + "-fx-text-fill: " + TEXT + ";"
-                    + "-fx-background-radius: 8;"
-                    + "-fx-padding: 6 14;"
-                    + "-fx-cursor: hand;");
-            showAddPanel();
-        } else {
-            styleActionBtn(addBtnRef, true);
-            editPanel = null;
-            root.setLeft(null);
-        }
-    }
-
-    private void showAddPanel() {
-        VBox panel = new VBox(12);
-        panel.setPrefWidth(320);
-        panel.setPadding(new Insets(16));
-        panel.setStyle("-fx-background-color: " + SURFACE + ";");
-
-        Label heading = new Label("Add New Town");
-        heading.setFont(Font.font("System", FontWeight.BOLD, 16));
-        heading.setStyle("-fx-text-fill: " + ACCENT + ";");
-
-        Label nameLabel = new Label("Town Name");
-        nameLabel.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 11;");
-        TextField nameField = new TextField();
-        nameField.setPromptText("Enter town name");
-        styleTextField(nameField);
-
-        Label connHeading = new Label("Outgoing Connections");
-        connHeading.setFont(Font.font("System", FontWeight.BOLD, 13));
-        connHeading.setStyle("-fx-text-fill: " + TEXT + ";");
-        connHeading.setPadding(new Insets(8, 0, 0, 0));
-
-        GridPane header = new GridPane();
-        header.setHgap(4);
-        Label hNb = new Label("Neighbor");
-        hNb.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hNb.setPrefWidth(120);
-        Label hDist = new Label("Dist (km)");
-        hDist.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hDist.setPrefWidth(55);
-        Label hTime = new Label("Time (min)");
-        hTime.setStyle("-fx-text-fill: " + TEXT_DIM + "; -fx-font-size: 10;");
-        hTime.setPrefWidth(55);
-        header.add(hNb, 0, 0);
-        header.add(hDist, 1, 0);
-        header.add(hTime, 2, 0);
-
-        VBox connRows = new VBox(6);
-        List<Object[]> rowData = new ArrayList<>();
-
-        List<String> townNames = new ArrayList<>();
-        for (Town t : ghana.getTowns().values()) {
-            townNames.add(t.getName());
-        }
-        townNames.sort(String::compareTo);
-
-        Runnable addRow = () -> {
-            GridPane row = new GridPane();
-            row.setHgap(4);
-
-            ComboBox<String> combo = new ComboBox<>(
-                    FXCollections.observableArrayList(townNames));
-            combo.setPromptText("Select town");
-            combo.setPrefWidth(120);
-            combo.setStyle("-fx-background-color: " + CARD + ";"
-                    + "-fx-font-size: 11;");
-            combo.setButtonCell(makeComboCell());
-            combo.setCellFactory(lv -> makeComboCell());
-
-            TextField distField = new TextField();
-            distField.setPromptText("km");
-            styleTextField(distField);
-            distField.setPrefWidth(55);
-
-            TextField timeField = new TextField();
-            timeField.setPromptText("min");
-            styleTextField(timeField);
-            timeField.setPrefWidth(55);
-
-            Button removeBtn = new Button("x");
-            removeBtn.setStyle("-fx-background-color: #5c2030;"
-                    + "-fx-text-fill: " + TEXT + ";"
-                    + "-fx-background-radius: 4;"
-                    + "-fx-padding: 3 7;"
-                    + "-fx-cursor: hand;"
-                    + "-fx-font-size: 11;");
-
-            Object[] entry = new Object[]{combo, distField, timeField, row};
-            rowData.add(entry);
-
-            removeBtn.setOnAction(ev -> {
-                connRows.getChildren().remove(row);
-                rowData.remove(entry);
-            });
-
-            row.add(combo, 0, 0);
-            row.add(distField, 1, 0);
-            row.add(timeField, 2, 0);
-            row.add(removeBtn, 3, 0);
-            connRows.getChildren().add(row);
-        };
-
-        Button addConnBtn = new Button("+ Add Connection");
-        addConnBtn.setStyle("-fx-background-color: " + CARD + ";"
-                + "-fx-text-fill: " + ACCENT + ";"
-                + "-fx-background-radius: 6;"
-                + "-fx-padding: 6 14;"
-                + "-fx-cursor: hand;"
-                + "-fx-font-size: 12;");
-        addConnBtn.setOnAction(ev -> addRow.run());
-
-        addRow.run();
-
-        ScrollPane connScroll = new ScrollPane(connRows);
-        connScroll.setFitToWidth(true);
-        connScroll.setStyle("-fx-background: " + SURFACE + ";"
-                + " -fx-border-color: transparent;");
-        connScroll.setPrefHeight(300);
-        VBox.setVgrow(connScroll, Priority.ALWAYS);
-
-        HBox buttons = new HBox(10);
-        buttons.setAlignment(Pos.CENTER_LEFT);
-        buttons.setPadding(new Insets(10, 0, 0, 0));
-
-        Button saveBtn = new Button("Save");
-        Button cancelBtn = new Button("Cancel");
-        styleActionBtn(saveBtn, true);
-        saveBtn.setStyle(saveBtn.getStyle()
-                + "-fx-background-color: #1b7a3d;");
-        styleActionBtn(cancelBtn, true);
-
-        saveBtn.setOnAction(e -> handleAddSave(nameField, rowData));
-        cancelBtn.setOnAction(e -> toggleAddMode());
-
-        buttons.getChildren().addAll(saveBtn, cancelBtn);
-
-        panel.getChildren().addAll(heading, nameLabel, nameField,
-                connHeading, header, connScroll, addConnBtn, buttons);
-
-        editPanel = panel;
-        root.setLeft(editPanel);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void handleAddSave(TextField nameField, List<Object[]> rowData) {
-        String townName = nameField.getText().trim();
-        if (townName.isEmpty()) {
-            showError("Town name cannot be empty.");
-            return;
-        }
-
-        String key = townName.trim().toLowerCase();
-        if (ghana.getTowns().containsKey(key)) {
-            showError("A town named \"" + townName + "\" already exists.");
-            return;
-        }
-
-        List<String> neighbors = new ArrayList<>();
-        List<int[]> edgeValues = new ArrayList<>();
-
-        for (int i = 0; i < rowData.size(); i++) {
-            Object[] entry = rowData.get(i);
-            ComboBox<String> combo = (ComboBox<String>) entry[0];
-            TextField distField = (TextField) entry[1];
-            TextField timeField = (TextField) entry[2];
-
-            String selected = combo.getValue();
-            if (selected == null || selected.isEmpty()) {
-                showError("Connection row " + (i + 1)
-                        + ": please select a neighbor town.");
-                return;
-            }
-
-            String distStr = distField.getText().trim();
-            String timeStr = timeField.getText().trim();
-            if (distStr.isEmpty() || timeStr.isEmpty()) {
-                showError("Connection row " + (i + 1)
-                        + ": distance and time are required.");
-                return;
-            }
-
-            int dist, time;
-            try {
-                dist = Integer.parseInt(distStr);
-                time = Integer.parseInt(timeStr);
-            } catch (NumberFormatException ex) {
-                showError("Connection row " + (i + 1)
-                        + ": distance and time must be numbers.");
-                return;
-            }
-            if (dist < 0 || time < 0) {
-                showError("Connection row " + (i + 1)
-                        + ": distance and time cannot be negative.");
-                return;
-            }
-
-            if (neighbors.contains(selected.trim().toLowerCase())) {
-                showError("Duplicate connection to \"" + selected + "\".");
-                return;
-            }
-
-            neighbors.add(selected.trim().toLowerCase());
-            edgeValues.add(new int[]{dist, time});
-        }
-
-        try {
-            ghana.addTown(townName);
-
-            for (int i = 0; i < neighbors.size(); i++) {
-                String nbDisplay = ((ComboBox<String>) rowData.get(i)[0]).getValue();
-                int[] vals = edgeValues.get(i);
-                ghana.updateEdge(townName, nbDisplay, vals[0], vals[1]);
-            }
-
-            ghana.saveToFile(filePath);
-
-            editPanel = null;
-            root.setLeft(null);
-            if (addMode) toggleAddMode();
-
-            layoutGraph(lastViewW, lastViewH);
-
-        } catch (IllegalArgumentException ex) {
-            showError(ex.getMessage());
-        } catch (IOException ex) {
-            showError("Failed to save file: " + ex.getMessage());
-        }
+        selectedEdge = line;
+        line.setStroke(Color.web(ACCENT));
+        line.setStrokeWidth(4.0);
+        line.toFront();
+        
+        line.setUserData(new String[]{srcKey, dstKey}); // store keys for deletion
     }
 
     // ------------------------------------------------------------------
